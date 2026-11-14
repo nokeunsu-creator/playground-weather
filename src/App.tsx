@@ -1,0 +1,210 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { DataIndex, Place, SggInfo, WxSnapshot } from "./lib/types";
+import { loadIndex, loadPlaces, loadWx, nearestSgg } from "./lib/data";
+import { getCurrentLocation, type Loc } from "./lib/location";
+import { DEFAULT_SETTINGS, loadSettings, subscribe, toggleFav, updateSettings, type Settings } from "./lib/store";
+import { initAds, maybeShowInterstitial } from "./lib/ads";
+import { rescheduleMorning } from "./lib/notify";
+import { Home } from "./screens/Home";
+import { MapScreen, type MapFocus } from "./screens/MapScreen";
+import { PlaceSheet } from "./screens/PlaceSheet";
+import { Favorites } from "./screens/Favorites";
+import { SettingsScreen } from "./screens/Settings";
+import { Onboarding } from "./screens/Onboarding";
+import { haversineKm } from "./lib/geo";
+
+type Tab = "home" | "map" | "fav" | "settings";
+
+export function App() {
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [ready, setReady] = useState(false);
+  const [index, setIndex] = useState<DataIndex>();
+  const [loc, setLoc] = useState<Loc>();
+  const [sgg, setSgg] = useState<SggInfo>();
+  const [wx, setWx] = useState<WxSnapshot>();
+  const [wxError, setWxError] = useState<string>();
+  const [indexError, setIndexError] = useState<string>();
+  const [tab, setTab] = useState<Tab>("home");
+  const [focus, setFocus] = useState<MapFocus>();
+  const [detail, setDetail] = useState<{ place: Place; km?: number }>();
+  const [locating, setLocating] = useState(false);
+  const notifKey = useRef("");
+
+  const applyLocation = useCallback(
+    async (idx: DataIndex, l: Loc) => {
+      setLoc(l);
+      const s = nearestSgg(idx, l.lat, l.lng);
+      setSgg(s);
+      setWxError(undefined);
+      try {
+        setWx(await loadWx(s.code));
+      } catch (e) {
+        setWx(undefined);
+        setWxError(`날씨 데이터를 불러오지 못했어요 (${(e as Error).message})`);
+      }
+      void updateSettings({ last: { lat: l.lat, lng: l.lng, at: l.at } });
+    },
+    [],
+  );
+
+  const locate = useCallback(
+    async (idx: DataIndex, s: Settings) => {
+      setLocating(true);
+      const gps = await getCurrentLocation();
+      setLocating(false);
+      if (gps) return applyLocation(idx, gps);
+      const home = s.homeSgg && idx.sgg.find((x) => x.code === s.homeSgg);
+      if (home) return applyLocation(idx, { lat: home.lat, lng: home.lng, source: "home", at: new Date().toISOString() });
+      if (s.last) return applyLocation(idx, { lat: s.last.lat, lng: s.last.lng, source: "manual", at: s.last.at });
+      const seoul = idx.sgg.find((x) => x.code === "11110") ?? idx.sgg[0];
+      return applyLocation(idx, { lat: seoul.lat, lng: seoul.lng, source: "manual", at: new Date().toISOString() });
+    },
+    [applyLocation],
+  );
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const s = await loadSettings();
+      if (!alive) return;
+      setSettings(s);
+      setReady(true);
+      try {
+        const idx = await loadIndex();
+        if (!alive) return;
+        setIndex(idx);
+        if (s.onboarded) await locate(idx, s);
+      } catch (e) {
+        setIndexError(`장소 데이터를 불러오지 못했어요. 인터넷 연결을 확인해 주세요. (${(e as Error).message})`);
+      }
+      void initAds();
+    })();
+    const un = subscribe(setSettings);
+    return () => {
+      alive = false;
+      un();
+    };
+  }, [locate]);
+
+  // 아침 알림 재예약(설정·날씨가 바뀔 때)
+  useEffect(() => {
+    if (!sgg) return;
+    const key = JSON.stringify([settings.notify, settings.child, sgg.code, wx?.fetchedAt]);
+    if (key === notifKey.current) return;
+    notifKey.current = key;
+    void rescheduleMorning({ ...settings.notify, snap: wx, child: settings.child, regionName: sgg.name });
+  }, [settings.notify, settings.child, sgg, wx]);
+
+  const openDetail = useCallback(
+    async (place: Place, km?: number) => {
+      const d = km ?? (loc ? haversineKm(loc.lat, loc.lng, place.lat, place.lng) : undefined);
+      setDetail({ place, km: d });
+      const s = await updateSettings((cur) => ({ detailViews: cur.detailViews + 1 }));
+      void maybeShowInterstitial(s.detailViews);
+    },
+    [loc],
+  );
+
+  const showOnMap = useCallback((place: Place) => {
+    setDetail(undefined);
+    setFocus({ lat: place.lat, lng: place.lng, placeId: place.id, zoom: 17 });
+    setTab("map");
+  }, []);
+
+  const changeRegion = useCallback(
+    async (code: string) => {
+      if (!index) return;
+      const s = index.sgg.find((x) => x.code === code);
+      if (!s) return;
+      await applyLocation(index, { lat: s.lat, lng: s.lng, source: "manual", at: new Date().toISOString() });
+    },
+    [index, applyLocation],
+  );
+
+  const refresh = useCallback(async () => {
+    if (!index) return;
+    await locate(index, settings);
+  }, [index, settings, locate]);
+
+  const openFav = useCallback(
+    async (id: string, sggCode: string) => {
+      try {
+        const f = await loadPlaces(sggCode);
+        const p = f.places.find((x) => x.id === id);
+        if (p) return openDetail(p);
+      } catch {
+        /* fall through */
+      }
+      const fav = settings.favorites.find((x) => x.id === id);
+      if (fav) openDetail({ id: fav.id, kind: fav.kind, name: fav.name, lat: fav.lat, lng: fav.lng, addr: fav.addr, sgg: fav.sgg });
+    },
+    [openDetail, settings.favorites],
+  );
+
+  if (!ready) return null;
+  if (!settings.onboarded) {
+    return (
+      <Onboarding
+        index={index}
+        onDone={async (child, homeSgg) => {
+          const home = index?.sgg.find((x) => x.code === homeSgg);
+          const s = await updateSettings({ child, onboarded: true, homeSgg, homeName: home ? `${home.sido} ${home.name}` : undefined });
+          if (index) await locate(index, s);
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="app">
+      {tab === "home" && (
+        <Home
+          index={index}
+          indexError={indexError}
+          sgg={sgg}
+          wx={wx}
+          wxError={wxError}
+          settings={settings}
+          loc={loc}
+          locating={locating}
+          onOpenDetail={openDetail}
+          onChangeRegion={changeRegion}
+          onRefresh={refresh}
+          onOpenMap={() => setTab("map")}
+        />
+      )}
+      {tab === "map" && index && (
+        <MapScreen index={index} loc={loc} settings={settings} wx={wx} focus={focus} onOpenDetail={openDetail} onRelocate={refresh} />
+      )}
+      {tab === "fav" && <Favorites settings={settings} loc={loc} onOpen={openFav} />}
+      {tab === "settings" && (
+        <SettingsScreen settings={settings} index={index} wx={wx} sgg={sgg} onUseHere={refresh} onChangeRegion={changeRegion} />
+      )}
+      <nav className="tabbar">
+        {(
+          [
+            ["home", "🏠", "오늘"],
+            ["map", "🗺️", "지도"],
+            ["fav", "⭐", "즐겨찾기"],
+            ["settings", "⚙️", "설정"],
+          ] as [Tab, string, string][]
+        ).map(([t, ico, label]) => (
+          <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
+            <span className="ico">{ico}</span>
+            {label}
+          </button>
+        ))}
+      </nav>
+      {detail && (
+        <PlaceSheet
+          place={detail.place}
+          km={detail.km}
+          fav={settings.favorites.some((f) => f.id === detail.place.id)}
+          onFav={() => void toggleFav(detail.place)}
+          onMap={() => showOnMap(detail.place)}
+          onClose={() => setDetail(undefined)}
+        />
+      )}
+    </div>
+  );
+}

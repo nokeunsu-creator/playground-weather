@@ -1,0 +1,58 @@
+name: places-data
+
+# 놀이터·공원·화장실 정적 데이터 빌드 → gh-pages 브랜치의 places/, index.json, meta.json
+on:
+  schedule:
+    - cron: "0 18 * * 0" # 매주 월요일 03:00 KST (놀이터 목록 재수집 포함)
+  workflow_dispatch:
+    inputs:
+      crawl:
+        description: "놀이터 목록 재수집(cpf.go.kr, 약 45분)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: write
+    env:
+      VWORLD_KEY: ${{ secrets.VWORLD_KEY }}
+      KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 지난 놀이터 목록 캐시 복원
+        uses: actions/cache@v4
+        with:
+          path: pipeline/.cache/cpf
+          key: cpf-${{ github.run_id }}
+          restore-keys: cpf-
+      - name: 놀이터 목록 수집
+        if: ${{ github.event_name == 'schedule' || inputs.crawl }}
+        run: npm run pipeline:crawl -- all
+      - name: 지오코딩(캐시 누적, 키 있을 때만)
+        run: npm run pipeline:geocode
+      - name: 장소 데이터 빌드
+        run: npm run pipeline:places -- --out site
+      - name: gh-pages 반영
+        run: |
+          git config user.name "pipeline-bot"
+          git config user.email "pipeline-bot@users.noreply.github.com"
+          git add pipeline/data/geocode.json || true
+          if ! git diff --cached --quiet; then git commit -m "chore: geocode cache" && git push; fi
+          git fetch origin gh-pages || true
+          git worktree add pages gh-pages 2>/dev/null || (git worktree add --orphan -b gh-pages pages)
+          rm -rf pages/places pages/index.json pages/meta.json
+          cp -r site/places pages/ && cp site/index.json site/meta.json pages/
+          touch pages/.nojekyll
+          cd pages && git add -A && (git diff --cached --quiet || git commit -m "data: places $(date -u +%F)") && git push origin gh-pages

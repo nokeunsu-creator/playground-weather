@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">놀이터 날씨</string>
+    <string name="title_activity_main">놀이터 날씨</string>
+    <string name="package_name">app.playweather.kr</string>
+    <string name="custom_url_scheme">app.playweather.kr</string>
+</resources>
