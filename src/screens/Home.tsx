@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { DataIndex, Place, SggInfo, WxSnapshot } from "../lib/types";
 import type { Settings } from "../lib/store";
 import type { Loc } from "../lib/location";
-import { bestWindow, inputFromHour, inputFromNow, judge, LEVEL_EMOJI, pm10Grade, pm25Grade, PM_LABEL, uvLabel } from "../lib/judge";
+import { bestWindow, inputFromHour, inputFromNow, judge, pm10Grade, pm25Grade, PM_LABEL, uvLabel } from "../lib/judge";
 import { fmtAgo, localIsoHour, nearbyPlaces, type NearbyPlace } from "../lib/data";
 import { isPublicSite, PlaceRow, skyIcon } from "../components/common";
+import { Icon } from "../components/Icon";
 import { RegionPicker } from "../components/RegionPicker";
 
 interface Props {
@@ -21,6 +22,9 @@ interface Props {
   onRefresh: () => void;
   onOpenMap: () => void;
 }
+
+const LEVEL_ICON = { good: "check", caution: "exclaim", bad: "xmark" } as const;
+const AGE = { infant: "0~2세", toddler: "3~6세", kid: "7세 이상" } as const;
 
 export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locating, onOpenDetail, onChangeRegion, onRefresh, onOpenMap }: Props) {
   const [pick, setPick] = useState(false);
@@ -73,8 +77,11 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
       <div className="topbar">
         <h1>놀이터 날씨</h1>
         <button className="region" onClick={() => setPick(true)} disabled={!index}>
-          {loc?.source === "gps" ? "📍" : loc?.source === "home" ? "🏠" : "📌"} {sgg ? `${sgg.sido} ${sgg.name}` : locating ? "위치 확인 중…" : "지역 선택"}
-          <small>▾</small>
+          <Icon name={loc?.source === "gps" ? "location" : loc?.source === "home" ? "house" : "pin"} size={15} />
+          {sgg ? `${sgg.sido} ${sgg.name}` : locating ? "위치 확인 중…" : "지역 선택"}
+          <small>
+            <Icon name="chevronDown" size={13} />
+          </small>
         </button>
       </div>
 
@@ -100,12 +107,14 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
         <>
           <section className={`card judge ${j.level}`}>
             <div className="level">
-              <span className="emoji">{LEVEL_EMOJI[j.level]}</span>
-              <div>
+              <span className="mark">
+                <Icon name={LEVEL_ICON[j.level]} size={30} />
+              </span>
+              <div style={{ minWidth: 0 }}>
                 <div className="headline">{j.headline}</div>
                 <div className="sub">
-                  {settings.child.age === "infant" ? "0~2세" : settings.child.age === "toddler" ? "3~6세" : "7세 이상"} 기준
-                  {settings.child.sensitive && " · 민감군"} {wx.mock && <span className="mock">모의 데이터</span>}
+                  {AGE[settings.child.age]} 기준{settings.child.sensitive && " · 민감군"}
+                  {wx.mock && <span className="mock">모의 데이터</span>}
                 </div>
               </div>
               <div className="score">
@@ -113,11 +122,18 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
               </div>
             </div>
             <div className="meta">
-              <span>🌡️ {Math.round(wx.now.temp)}℃ (체감 {Math.round(wx.now.feels)}℃)</span>
-              {j.maxMinutes > 0 ? <span>⏱️ 야외 {j.maxMinutes >= 120 ? "자유롭게" : `${j.maxMinutes}분 이내`}</span> : <span>🏠 실내 놀이 추천</span>}
+              <span>
+                <Icon name="thermo" size={18} />
+                {Math.round(wx.now.temp)}℃ · 체감 {Math.round(wx.now.feels)}℃
+              </span>
+              <span>
+                <Icon name="clock" size={18} />
+                {j.maxMinutes > 0 ? (j.maxMinutes >= 120 ? "야외 활동 자유롭게" : `야외 활동 ${j.maxMinutes}분 이내`) : "실내 놀이 추천"}
+              </span>
               {best && best.level !== "bad" && (
                 <span>
-                  ✨ 가장 좋은 시간 {best.start}~{best.end}
+                  <Icon name="sparkle" size={18} />
+                  가장 좋은 시간 {best.start}~{best.end}
                 </span>
               )}
             </div>
@@ -133,21 +149,21 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
           </section>
 
           <section className="card">
-            <h2>지금 공기와 햇빛</h2>
+            <h2>공기와 햇빛</h2>
             <div className="tiles">
               <div className="tile">
                 <div className="k">미세먼지</div>
-                <div className="v">{wx.now.pm10 ?? "-"}</div>
+                <div className="v">{wx.now.pm10 ?? "–"}</div>
                 <div className={`g g${g10 ?? 0}`}>{g10 != null ? PM_LABEL[g10] : "정보없음"}</div>
               </div>
               <div className="tile">
                 <div className="k">초미세먼지</div>
-                <div className="v">{wx.now.pm25 ?? "-"}</div>
+                <div className="v">{wx.now.pm25 ?? "–"}</div>
                 <div className={`g g${g25 ?? 0}`}>{g25 != null ? PM_LABEL[g25] : "정보없음"}</div>
               </div>
               <div className="tile">
                 <div className="k">자외선</div>
-                <div className="v">{uvNow ?? "-"}</div>
+                <div className="v">{uvNow ?? "–"}</div>
                 <div className={`g g${uvNow == null ? 0 : uvNow < 3 ? 1 : uvNow < 6 ? 2 : 3}`}>{uvNow != null ? uvLabel(uvNow) : "정보없음"}</div>
               </div>
               <div className="tile">
@@ -159,11 +175,13 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
                       ? ["낮음", "보통", "높음", "매우높음"][wx.idx.cold]
                       : `${wx.now.reh}%`}
                 </div>
-                <div className="g">{wx.now.station ? `측정소 ${wx.now.station}` : ""}</div>
+                <div className="g" style={{ color: "var(--muted)" }}>
+                  {wx.now.station ? wx.now.station : ""}
+                </div>
               </div>
             </div>
-            <div className="sub" style={{ marginTop: 8 }}>
-              날씨 {fmtAgo(wx.fetchedAt)} · 미세먼지 {wx.now.pmAt ? wx.now.pmAt.slice(5, 16).replace("T", " ") : "-"} 기준
+            <div className="sub" style={{ marginTop: 10 }}>
+              날씨 {fmtAgo(wx.fetchedAt)} · 미세먼지 {wx.now.pmAt ? wx.now.pmAt.slice(5, 16).replace("T", " ") : "–"} 기준
             </div>
           </section>
 
@@ -173,9 +191,11 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
               {hours.map(({ h, lv }) => (
                 <div key={h.t} className="hour">
                   <div className="t">{h.t.slice(11, 13)}시</div>
-                  <div className="ic">{skyIcon(h)}</div>
+                  <div className="ic">
+                    <Icon name={skyIcon(h)} size={22} />
+                  </div>
                   <div className="tmp">{Math.round(h.temp)}°</div>
-                  <div className="pop">{h.pop > 0 ? `${h.pop}%` : " "}</div>
+                  <div className="pop">{h.pop >= 20 ? `${h.pop}%` : ""}</div>
                   <div className={`dot ${lv}`} />
                 </div>
               ))}
@@ -188,25 +208,25 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
               const tmn = d0?.tmn ?? (todayHours.length ? Math.min(...todayHours.map((h) => h.temp)) : undefined);
               const tmx = d0?.tmx ?? (todayHours.length ? Math.max(...todayHours.map((h) => h.temp)) : undefined);
               return (
-                <div className="sub" style={{ marginTop: 6 }}>
+                <div className="sub" style={{ marginTop: 8 }}>
                   {tmn != null && tmx != null && `오늘 ${Math.round(tmn)}° ~ ${Math.round(tmx)}°`}
-                  {d1 && ` · 내일 ${d1.tmn ?? "-"}° ~ ${d1.tmx ?? "-"}°`}
+                  {d1 && ` · 내일 ${d1.tmn ?? "–"}° ~ ${d1.tmx ?? "–"}°`}
                 </div>
               );
             })()}
           </section>
 
           <section className="card">
-            <h2>아이 옷차림 · 준비물</h2>
-            <div className="chips">
+            <h2>옷차림과 준비물</h2>
+            <div className="chips" style={{ marginTop: 0 }}>
               {j.outfit.map((o) => (
                 <span key={o} className="chip">
-                  👕 {o}
+                  <Icon name="shirt" size={14} /> {o}
                 </span>
               ))}
               {j.items.map((o) => (
                 <span key={o} className="chip">
-                  🎒 {o}
+                  <Icon name="bag" size={14} /> {o}
                 </span>
               ))}
             </div>
@@ -216,7 +236,7 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
 
       {index && loc && (
         <section className="card">
-          <h2>{j?.level === "bad" ? "근처 실내 놀이터" : "근처 놀이터 · 공원"}</h2>
+          <h2>{j?.level === "bad" ? "근처 실내 놀이터" : "근처 놀이터와 공원"}</h2>
           {!nearby && <div className="sub">찾는 중…</div>}
           {nearby && suggestions.length === 0 && (
             <div className="sub">
@@ -232,15 +252,15 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
           </div>
           <div className="btnrow">
             <button className="btn block" onClick={onOpenMap}>
-              🗺️ 지도에서 모두 보기
+              <Icon name="map" size={18} /> 지도에서 모두 보기
             </button>
           </div>
         </section>
       )}
 
       <p className="notice">
-        출처: 기상청·한국환경공단(에어코리아)·행정안전부 공공데이터(공공누리 1유형). 판정은 참고용이며 아이 상태와 현장 상황을 우선하세요.
-        {index && ` 장소 데이터 ${index.builtAt.slice(0, 10)} 빌드.`}
+        기상청 · 한국환경공단 에어코리아 · 행정안전부 공공데이터(공공누리 1유형). 판정은 참고용이며 아이 상태와 현장 상황을 우선하세요.
+        {index && ` 장소 데이터 ${index.builtAt.slice(0, 10)}.`}
       </p>
 
       {pick && index && <RegionPicker index={index} value={sgg?.code} onPick={onChangeRegion} onClose={() => setPick(false)} />}

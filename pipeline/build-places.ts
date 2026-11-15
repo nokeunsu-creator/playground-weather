@@ -12,6 +12,7 @@ import { toGrid } from "../src/lib/kma-grid";
 import { fetchStandard } from "./sources/standard-data";
 import type { CpfRow } from "./sources/cpf-crawl";
 import { fetchAllPfct, type RawItem } from "./sources/pfct-api";
+import { fetchRides } from "./sources/ride-api";
 import { loadGeoCache, lookupGeo } from "./geocode";
 import { matchSgg, matchSido, normalizeAddr, SGG_BY_CODE, sidoOfSgg } from "./sgg";
 import { haversineKm } from "../src/lib/geo";
@@ -162,6 +163,13 @@ async function main() {
     console.warn(`[places] 놀이시설 API 실패(${(e as Error).message}) → cpf 목록으로 대체 시도`);
   }
   if (pfctItems.length) {
+    // 놀이기구 유형(그네·미끄럼틀·조합놀이대 …) — 실패해도 진행
+    let rides: Record<string, string[]> = {};
+    try {
+      rides = await fetchRides();
+    } catch (e) {
+      console.warn(`[places] 기구정보 API 실패(${(e as Error).message}) → 기구 없이 진행`);
+    }
     // cpf 목록이 있으면 안전검사 상태만 보강
     const cpfExtra = new Map<string, CpfRow>();
     if (fs.existsSync(listFile)) {
@@ -202,9 +210,10 @@ async function main() {
         pub: r.prvtPblcYnCdNm === "공공" ? true : r.prvtPblcYnCdNm === "민간" ? false : undefined,
         installed: ymd(String(r.instlYmd ?? "")),
         inspectOk: extra?.inspect ? extra.inspect.includes("완료") || extra.inspect.includes("합격") : undefined,
+        rides: rides[String(r.pfctSn)],
       });
     }
-    sources.playgrounds = `행정안전부 전국어린이놀이시설정보서비스 ${pgTotal}건(좌표 ${pgTotal - pgNoGeo}건)`;
+    sources.playgrounds = `행정안전부 전국어린이놀이시설정보서비스 ${pgTotal}건(좌표 ${pgTotal - pgNoGeo}건), 기구정보 ${Object.keys(rides).length}개 시설`;
   } else if (fs.existsSync(listFile)) {
     const water = new Set<string>(readJsonIf<string[]>("pipeline/.cache/cpf/water.json") ?? []);
     const excellent = new Set<string>(readJsonIf<string[]>("pipeline/.cache/cpf/excellent.json") ?? []);

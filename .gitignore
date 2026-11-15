@@ -13,3 +13,4 @@ public/data/
 /data/
 pipeline/.cache/
 out/
+android/keystore.properties

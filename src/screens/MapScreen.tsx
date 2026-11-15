@@ -6,7 +6,8 @@ import type { Settings } from "../lib/store";
 import type { Loc } from "../lib/location";
 import { loadPlaces, nearestSggs } from "../lib/data";
 import { haversineKm } from "../lib/geo";
-import { isPublicSite, KIND_EMOJI } from "../components/common";
+import { isPublicSite, KIND_ICON } from "../components/common";
+import { Icon, iconSvg } from "../components/Icon";
 
 export interface MapFocus {
   lat: number;
@@ -52,9 +53,9 @@ function markerIcon(p: Place): L.DivIcon {
   const cls = p.kind === "playground" && p.indoor ? "indoor" : p.kind;
   return L.divIcon({
     className: "",
-    html: `<div class="pw-marker ${cls}"><span>${p.kind === "playground" && p.water ? "💦" : KIND_EMOJI[p.kind]}</span></div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 28],
+    html: `<div class="pw-marker ${cls}">${iconSvg(p.kind === "playground" && p.water ? "drop" : KIND_ICON[p.kind], 15)}</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
   });
 }
 
@@ -175,7 +176,7 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
         <div className="map-top">
           {(["playground", "park", "toilet"] as PlaceKind[]).map((k) => (
             <button key={k} className={`chip ${filters.kinds[k] ? "on" : ""}`} onClick={() => toggleKind(k)}>
-              {KIND_EMOJI[k]} {k === "playground" ? "놀이터" : k === "park" ? "공원" : "화장실"}
+              <Icon name={KIND_ICON[k]} size={15} /> {k === "playground" ? "놀이터" : k === "park" ? "공원" : "화장실"}
             </button>
           ))}
           <button className={`chip ${filters.publicOnly ? "on" : ""}`} onClick={() => setFilters((f) => ({ ...f, publicOnly: !f.publicOnly }))}>
@@ -199,7 +200,7 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
             if (loc && mapRef.current) mapRef.current.setView([loc.lat, loc.lng], 15);
           }}
         >
-          📍
+          <Icon name="location" size={22} />
         </button>
         <div className="map-hint">
           {loading ? "불러오는 중…" : `놀이터 ${counts.playground} · 공원 ${counts.park} · 화장실 ${counts.toilet}`}

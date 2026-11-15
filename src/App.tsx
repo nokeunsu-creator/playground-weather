@@ -12,6 +12,7 @@ import { Favorites } from "./screens/Favorites";
 import { SettingsScreen } from "./screens/Settings";
 import { Onboarding } from "./screens/Onboarding";
 import { haversineKm } from "./lib/geo";
+import { Icon, type IconName } from "./components/Icon";
 
 type Tab = "home" | "map" | "fav" | "settings";
 
@@ -183,14 +184,14 @@ export function App() {
       <nav className="tabbar">
         {(
           [
-            ["home", "🏠", "오늘"],
-            ["map", "🗺️", "지도"],
-            ["fav", "⭐", "즐겨찾기"],
-            ["settings", "⚙️", "설정"],
-          ] as [Tab, string, string][]
+            ["home", "house", "오늘"],
+            ["map", "map", "지도"],
+            ["fav", "star", "즐겨찾기"],
+            ["settings", "gear", "설정"],
+          ] as [Tab, IconName, string][]
         ).map(([t, ico, label]) => (
           <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
-            <span className="ico">{ico}</span>
+            <Icon name={tab === t && ico === "star" ? "starFill" : ico} size={24} fill={tab === t && ico === "house"} />
             {label}
           </button>
         ))}

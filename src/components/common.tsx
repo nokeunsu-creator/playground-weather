@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import type { Place, PlaceKind, WxHour } from "../lib/types";
 import { fmtDistance } from "../lib/geo";
+import { Icon, type IconName } from "./Icon";
 
 export const KIND_LABEL: Record<PlaceKind, string> = { playground: "놀이터", park: "공원", toilet: "화장실" };
-export const KIND_EMOJI: Record<PlaceKind, string> = { playground: "🛝", park: "🌳", toilet: "🚻" };
+export const KIND_ICON: Record<PlaceKind, IconName> = { playground: "slide", park: "tree", toilet: "toilet" };
 
 /**
- * 외부인이 못 들어가는 설치장소. 행안부 분류 기준 85,414곳 중 주택단지 46,277·유치원 7,186·학교 6,945·어린이집 6,864 등.
+ * 외부인이 못 들어가는 설치장소. 행안부 분류 기준 85,416곳 중 주택단지 46,277·유치원 7,186·학교 6,945·어린이집 6,864 등.
  * 나머지(도시공원 12,513, 놀이제공영업소 1,906, 식품접객업소 1,350, 야영장, 자연휴양림, 박물관, 육아종합지원센터 …)는 공개로 본다.
  */
 const RESTRICTED_SITES = ["주택단지", "주상복합", "아파트", "빌라", "유치원", "어린이집", "학교", "학원", "종교시설", "아동복지시설", "기숙사", "사택", "교육기관", "직장"];
@@ -23,7 +24,7 @@ export function placeDesc(p: Place): string {
     if (p.indoor) parts.push("실내");
     if (p.water) parts.push("물놀이");
     if (p.excellent) parts.push("우수시설");
-    if (p.installed) parts.push(`${p.installed.slice(0, 4)}년 설치`);
+    if (p.rides?.length) parts.push(p.rides.slice(0, 3).join("·"));
   } else if (p.kind === "park") {
     if (p.parkType) parts.push(p.parkType);
     if (p.facilities?.length) parts.push(p.facilities.slice(0, 3).join("·"));
@@ -38,12 +39,17 @@ export function placeDesc(p: Place): string {
 export function PlaceRow({ place, km, onClick }: { place: Place; km?: number; onClick?: () => void }) {
   return (
     <button className="row" onClick={onClick}>
-      <span className={`badge ${place.kind}`}>{KIND_EMOJI[place.kind]}</span>
+      <span className={`badge ${place.kind}`}>
+        <Icon name={KIND_ICON[place.kind]} size={20} />
+      </span>
       <span className="body">
         <span className="name">{place.name}</span>
         <span className="desc">{placeDesc(place)}</span>
       </span>
       {km != null && <span className="km">{fmtDistance(km)}</span>}
+      <span className="chev">
+        <Icon name="chevron" size={18} />
+      </span>
     </button>
   );
 }
@@ -76,15 +82,14 @@ export function Seg<T extends string>({ value, options, onChange }: { value: T; 
   );
 }
 
-export function skyIcon(h: Pick<WxHour, "pty" | "sky" | "t">): string {
-  if (h.pty === 3) return "🌨️";
-  if (h.pty === 2) return "🌧️";
-  if (h.pty === 1 || h.pty === 4) return "🌧️";
+export function skyIcon(h: Pick<WxHour, "pty" | "sky" | "t">): IconName {
+  if (h.pty === 3 || h.pty === 2) return "snow";
+  if (h.pty === 1 || h.pty === 4) return "rain";
   const hour = Number(h.t.slice(11, 13));
   const night = hour < 6 || hour >= 19;
-  if (h.sky >= 4) return "☁️";
-  if (h.sky === 3) return night ? "☁️" : "⛅";
-  return night ? "🌙" : "☀️";
+  if (h.sky >= 4) return "cloud";
+  if (h.sky === 3) return night ? "cloud" : "cloudSun";
+  return night ? "moon" : "sun";
 }
 
 export function openExternal(url: string) {
