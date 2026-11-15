@@ -3,6 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <!--
+      CSP: 외부 스크립트 차단, 데이터는 GitHub Pages 만, 이미지는 지도 타일만 허용.
+      script/style 의 'unsafe-inline' 은 Capacitor 가 네이티브 브리지를 인라인 <script> 로 주입하고 Leaflet 이 인라인 style 을 쓰기 때문에 필요.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://api.vworld.kr; connect-src 'self' https://nokeunsu-creator.github.io https://api.vworld.kr; font-src 'self' data:; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'"
+    />
     <meta name="theme-color" content="#2F80ED" />
     <title>놀이터 날씨</title>
   </head>
