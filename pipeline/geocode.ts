@@ -1,14 +1,15 @@
 /**
  * 주소 → 좌표 지오코딩(놀이터 목록은 좌표가 없다).
  * 1순위 브이월드(VWORLD_KEY), 2순위 카카오 로컬(KAKAO_REST_KEY). 키가 없으면 건너뛴다.
- * 결과 캐시: pipeline/.cache/geocode.json  { [정규화주소]: {lat,lng,src} | null }
+ * 결과 캐시: pipeline/data/geocode.json  { [정규화주소]: {lat,lng,src} | null }
+ *   (git 에 커밋해 GitHub Actions 실행 간에 누적한다. 키 한도 때문에 하루에 다 못 받아도 이어서 진행)
  * 사용: tsx pipeline/geocode.ts [--limit N]
  */
 import fs from "node:fs";
 import path from "node:path";
 import { addrForGeocode } from "./sgg";
 
-const CACHE_FILE = path.resolve("pipeline/.cache/geocode.json");
+const CACHE_FILE = path.resolve("pipeline/data/geocode.json");
 const UA = "PlaygroundWeather-pipeline/0.1";
 
 export type GeoHit = { lat: number; lng: number; src: "vworld" | "kakao" };
