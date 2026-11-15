@@ -21,6 +21,8 @@ export interface Place {
   water?: boolean;
   /** 행안부 우수 놀이시설 */
   excellent?: boolean;
+  /** 행안부 분류상 공공(true)/민간(false) 설치 */
+  pub?: boolean;
   /** 설치일 YYYY-MM-DD */
   installed?: string;
   /** 최근 안전검사일 YYYY-MM-DD */

@@ -11,6 +11,7 @@ import type { DataIndex, Place, PlaceKind, PlacesFile, SggInfo } from "../src/li
 import { toGrid } from "../src/lib/kma-grid";
 import { fetchStandard } from "./sources/standard-data";
 import type { CpfRow } from "./sources/cpf-crawl";
+import { fetchAllPfct, type RawItem } from "./sources/pfct-api";
 import { loadGeoCache, lookupGeo } from "./geocode";
 import { matchSgg, matchSido, normalizeAddr, SGG_BY_CODE, sidoOfSgg } from "./sgg";
 import { haversineKm } from "../src/lib/geo";
@@ -150,11 +151,61 @@ async function main() {
   }
   sources.toilets = `전국공중화장실표준데이터 ${toilets.totalCount}건, 기준일 ${refDate}`;
 
-  // ---- 놀이터 ----
+  // ---- 놀이터: 1순위 행안부 전국어린이놀이시설정보 API(좌표·공공/민간·실내외 포함) ----
   const listFile = path.resolve("pipeline/.cache/cpf/list.jsonl");
   let pgTotal = 0;
   let pgNoGeo = 0;
-  if (fs.existsSync(listFile)) {
+  let pfctItems: RawItem[] = [];
+  try {
+    pfctItems = await fetchAllPfct();
+  } catch (e) {
+    console.warn(`[places] 놀이시설 API 실패(${(e as Error).message}) → cpf 목록으로 대체 시도`);
+  }
+  if (pfctItems.length) {
+    // cpf 목록이 있으면 안전검사 상태만 보강
+    const cpfExtra = new Map<string, CpfRow>();
+    if (fs.existsSync(listFile)) {
+      for (const l of fs.readFileSync(listFile, "utf8").split("\n")) {
+        if (!l) continue;
+        const r = JSON.parse(l) as CpfRow;
+        cpfExtra.set(r.id, r);
+      }
+    }
+    pgTotal = pfctItems.length;
+    for (const r of pfctItems) {
+      if (r.operYnCdNm && r.operYnCdNm !== "운영") continue;
+      // 폐쇄일자: 값이 없을 때 공백 8칸으로 오는 행이 17,850건 → 숫자가 있을 때만 폐쇄로 본다
+      if (/\d/.test(String(r.clsgYmd ?? ""))) continue;
+      const lat = num(String(r.latCrtsVl ?? ""));
+      const lng = num(String(r.lotCrtsVl ?? ""));
+      if (!inKorea(lat, lng)) {
+        pgNoGeo++;
+        continue;
+      }
+      const addr = normalizeAddr(String(r.ronaAddr || r.lotnoAddr || r.rgnCdNm || ""));
+      const rgn = String(r.rgnCd ?? "").slice(0, 5);
+      const sgg = (SGG_BY_CODE.has(rgn) ? rgn : undefined) ?? matchSgg(addr)?.code ?? "";
+      const site = String(r.instlPlaceCdNm ?? "").trim();
+      const extra = cpfExtra.get(String(r.pfctSn));
+      (sgg ? places : pending).push({
+        id: `pg:${r.pfctSn}`,
+        kind: "playground",
+        name: String(r.pfctNm ?? "").trim() || "어린이놀이시설",
+        lat,
+        lng: lng as number,
+        addr,
+        sgg,
+        site: site || undefined,
+        indoor: r.idrodrCdNm === "실내" || undefined,
+        water: r.wowaStylRideCd === "X001" || undefined,
+        excellent: r.exfcYn === "Y" || undefined,
+        pub: r.prvtPblcYnCdNm === "공공" ? true : r.prvtPblcYnCdNm === "민간" ? false : undefined,
+        installed: ymd(String(r.instlYmd ?? "")),
+        inspectOk: extra?.inspect ? extra.inspect.includes("완료") || extra.inspect.includes("합격") : undefined,
+      });
+    }
+    sources.playgrounds = `행정안전부 전국어린이놀이시설정보서비스 ${pgTotal}건(좌표 ${pgTotal - pgNoGeo}건)`;
+  } else if (fs.existsSync(listFile)) {
     const water = new Set<string>(readJsonIf<string[]>("pipeline/.cache/cpf/water.json") ?? []);
     const excellent = new Set<string>(readJsonIf<string[]>("pipeline/.cache/cpf/excellent.json") ?? []);
     const rows = fs

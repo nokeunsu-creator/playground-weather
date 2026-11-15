@@ -24,7 +24,10 @@ export interface PfctCoord {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function fetchPage(pageNo: number, numOfRows: number): Promise<{ items: RawItem[]; total: number }> {
-  const url = `${BASE}?serviceKey=${encodeURIComponent(KEY!)}&pageNo=${pageNo}&numOfRows=${numOfRows}&type=json`;
+  // 이 API는 pageIndex / recordCountPerPage 를 쓴다(응답 body 에 같은 이름으로 메아리). 표준 이름도 함께 보낸다.
+  const url =
+    `${BASE}?serviceKey=${encodeURIComponent(KEY!)}&type=json` +
+    `&pageIndex=${pageNo}&recordCountPerPage=${numOfRows}&pageNo=${pageNo}&numOfRows=${numOfRows}`;
   for (let i = 1; i <= 3; i++) {
     const res = await fetch(url, { headers: { Accept: "application/json" } });
     const text = await res.text();
@@ -55,7 +58,7 @@ function extract(j: Record<string, unknown>): { items: RawItem[]; total: number 
       for (const x of o) walk(x);
     } else if (o && typeof o === "object") {
       for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
-        if (/^(totalCount|list_total_count|total)$/i.test(k) && Number.isFinite(Number(v))) total = Number(v);
+        if (/^(totalCount|list_total_count|total|totalCnt)$/i.test(k) && Number.isFinite(Number(v))) total = Number(v);
         walk(v);
       }
     }

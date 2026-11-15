@@ -1,15 +1,16 @@
 name: places-data
 
 # 놀이터·공원·화장실 정적 데이터 빌드 → gh-pages 브랜치의 places/, index.json, meta.json
+# 놀이터는 행안부 전국어린이놀이시설정보 API(좌표 포함, 약 90회 호출)로 받는다. cpf.go.kr 크롤링은 예비용(기본 꺼짐).
 on:
   schedule:
-    - cron: "0 18 * * 0" # 매주 월요일 03:00 KST (놀이터 목록 재수집 포함)
+    - cron: "0 18 * * 0" # 매주 월요일 03:00 KST
   workflow_dispatch:
     inputs:
       crawl:
-        description: "놀이터 목록 재수집(cpf.go.kr, 약 45분)"
+        description: "cpf.go.kr 목록 재수집(예비, 약 45분)"
         type: boolean
-        default: true
+        default: false
 
 concurrency:
   group: gh-pages
@@ -22,6 +23,7 @@ jobs:
     permissions:
       contents: write
     env:
+      DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
       VWORLD_KEY: ${{ secrets.VWORLD_KEY }}
       KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
     steps:
@@ -37,11 +39,9 @@ jobs:
           path: pipeline/.cache/cpf
           key: cpf-${{ github.run_id }}
           restore-keys: cpf-
-      - name: 놀이터 목록 수집
-        if: ${{ github.event_name == 'schedule' || inputs.crawl }}
+      - name: 놀이터 목록 수집(예비, cpf.go.kr)
+        if: ${{ inputs.crawl }}
         run: npm run pipeline:crawl -- all
-      - name: 지오코딩(캐시 누적, 키 있을 때만)
-        run: npm run pipeline:geocode
       - name: 장소 데이터 빌드
         run: npm run pipeline:places -- --out site
       - name: gh-pages 반영
