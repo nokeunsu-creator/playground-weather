@@ -8,8 +8,9 @@
 ```
 pipeline/                  데이터 파이프라인(GitHub Actions 에서 실행, 로컬에서도 가능)
   sources/standard-data.ts 공공데이터포털 표준데이터(도시공원 18,376 · 공중화장실 33,820) 다운로드 — 키 불필요
-  sources/cpf-crawl.ts     행안부 어린이놀이시설 안전관리시스템 목록 85,414건 수집(12건/페이지, 스로틀, 캐시)
-  geocode.ts               놀이터 주소 → 좌표 (브이월드 / 카카오, 키 필요, 캐시 누적)
+  sources/pfct-api.ts      행안부 전국어린이놀이시설정보 API(data.go.kr 15124519) 85,416건 — 위경도·공공/민간·실내외·물놀이·우수시설 포함, 1,000건×86페이지
+  sources/cpf-crawl.ts     (예비) 행안부 어린이놀이시설 안전관리시스템 목록 크롤링 — 안전검사 상태 보강용
+  geocode.ts               (예비) 주소 → 좌표. 브이월드·카카오는 결과 저장을 금지하므로 운영에는 쓰지 않음
   build-places.ts          → data/places/{시군구}.json, data/index.json(시군구 255개 중심좌표·기상청 격자), meta.json
   fetch-weather.ts         → data/wx/{시군구}.json (단기예보 48h, 실황, 자외선·꽃가루·감기지수, 미세먼지). 키 없으면 --mock
   sgg.ts / data/sgg-codes.json  법정동코드 기반 시도·시군구 표 + 주소 매칭(2026년 전남광주통합특별시, 인천 제물포구·영종구 반영)
