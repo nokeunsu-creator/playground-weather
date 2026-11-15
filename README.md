@@ -55,7 +55,12 @@ npm run apk           # android/app/build/outputs/apk/debug/app-debug.apk
 | 지오코딩 대안 | developers.kakao.com REST 키 | `KAKAO_REST_KEY` |
 | 광고 | admob.google.com 앱·광고단위 | `VITE_ADMOB_*` |
 
-GitHub Actions 에서는 같은 이름의 Secrets 로 넣는다. 데이터는 `gh-pages` 브랜치(= GitHub Pages)에 올라가며 앱의 `VITE_DATA_BASE` 를 그 주소로 지정한다.
+GitHub Actions 에서는 같은 이름의 Secrets 로 넣는다(저장소 Settings → Secrets and variables → Actions → New repository secret, 또는 `gh secret set DATA_GO_KR_KEY`).
+데이터는 `gh-pages` 브랜치(= GitHub Pages)에 올라가며 앱의 `VITE_DATA_BASE` 를 그 주소로 지정한다.
+
+- 저장소: https://github.com/nokeunsu-creator/playground-weather (공개)
+- 데이터 주소: https://nokeunsu-creator.github.io/playground-weather/ (`index.json`, `places/{시군구}.json`, `wx/{시군구}.json`)
+- 수동 실행: Actions 탭 → `weather-data` 또는 `places-data` → Run workflow. 날씨는 매시 15분, 장소는 매주 월요일 03:00 KST 자동 실행.
 
 ## 판정 기준(요약)
 - 미세먼지 환경부 4등급(PM10 30/80/150, PM2.5 15/35/75). 나쁨 이상이면 실내 추천, 영아·민감군은 보통 상단부터 주의.
