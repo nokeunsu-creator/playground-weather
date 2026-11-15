@@ -10,6 +10,6 @@ android/app/release/
 *.keystore
 .cache/
 public/data/
-data/
+/data/
 pipeline/.cache/
 out/
