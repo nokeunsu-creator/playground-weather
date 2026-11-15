@@ -12,3 +12,4 @@ android/app/release/
 public/data/
 data/
 pipeline/.cache/
+out/
