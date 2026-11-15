@@ -54,6 +54,20 @@ export async function fetchRides(opts: { maxAgeHours?: number } = {}): Promise<R
   const pages = Math.ceil(first.total / PAGE);
   console.log(`[rides] total=${first.total} pages=${pages}`);
   const map = new Map<string, Set<string>>();
+  const partial = path.join(CACHE, "rides.partial.json");
+  const checkpoint = (p: number) => {
+    const out: Record<string, string[]> = {};
+    for (const [k, v] of map) out[k] = [...v].slice(0, 12);
+    fs.writeFileSync(partial, JSON.stringify({ page: p, out }));
+  };
+  // 중간에 끊겨도 이어받기
+  let startPage = 2;
+  if (fs.existsSync(partial)) {
+    const saved = JSON.parse(fs.readFileSync(partial, "utf8")) as { page: number; out: Record<string, string[]> };
+    for (const [k, v] of Object.entries(saved.out)) map.set(k, new Set(v));
+    startPage = saved.page + 1;
+    console.log(`[rides] resume from page ${startPage} (${map.size} facilities)`);
+  }
   const add = (rows: RideRow[]) => {
     for (const r of rows) {
       if (r.dscdYmd && /\d/.test(r.dscdYmd)) continue; // 폐기된 기구
@@ -64,15 +78,17 @@ export async function fetchRides(opts: { maxAgeHours?: number } = {}): Promise<R
       map.set(String(r.pfctSn), s);
     }
   };
-  add(first.rows);
-  for (let p = 2; p <= pages; p++) {
+  if (startPage === 2) add(first.rows);
+  for (let p = startPage; p <= pages; p++) {
     add((await page(p)).rows);
     if (p % 10 === 0) console.log(`[rides] page ${p}/${pages} (${map.size} facilities)`);
+    if (p % 25 === 0) checkpoint(p);
     await sleep(60);
   }
   const out: Record<string, string[]> = {};
   for (const [k, v] of map) out[k] = [...v].slice(0, 12);
   fs.writeFileSync(file, JSON.stringify(out));
+  if (fs.existsSync(partial)) fs.unlinkSync(partial);
   console.log(`[rides] cached ${map.size} facilities`);
   return out;
 }
