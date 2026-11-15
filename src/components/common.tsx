@@ -5,10 +5,15 @@ import { fmtDistance } from "../lib/geo";
 export const KIND_LABEL: Record<PlaceKind, string> = { playground: "놀이터", park: "공원", toilet: "화장실" };
 export const KIND_EMOJI: Record<PlaceKind, string> = { playground: "🛝", park: "🌳", toilet: "🚻" };
 
-const PUBLIC_SITES = ["도시공원", "어린이공원", "공원", "놀이터", "하천", "자연휴양림", "관광지", "유원지", "공공", "지역아동센터", "광장", "체육"];
-/** 누구나 갈 수 있는 설치장소(아파트·학교·유치원 등 제한 시설 제외) */
+/**
+ * 외부인이 못 들어가는 설치장소. 행안부 분류 기준 85,414곳 중 주택단지 46,277·유치원 7,186·학교 6,945·어린이집 6,864 등.
+ * 나머지(도시공원 12,513, 놀이제공영업소 1,906, 식품접객업소 1,350, 야영장, 자연휴양림, 박물관, 육아종합지원센터 …)는 공개로 본다.
+ */
+const RESTRICTED_SITES = ["주택단지", "주상복합", "아파트", "빌라", "유치원", "어린이집", "학교", "학원", "종교시설", "아동복지시설", "기숙사", "사택", "교육기관", "직장"];
+/** 누구나 갈 수 있는 설치장소인가 */
 export function isPublicSite(site: string): boolean {
-  return PUBLIC_SITES.some((k) => site.includes(k));
+  if (!site) return true;
+  return !RESTRICTED_SITES.some((k) => site.includes(k));
 }
 
 export function placeDesc(p: Place): string {

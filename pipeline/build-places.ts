@@ -78,12 +78,8 @@ function ymd(s?: string): string | undefined {
   return m ? `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}` : undefined;
 }
 
-const INDOOR_SITES = ["목욕장업소", "식품접객업소", "대규모점포", "실내", "키즈카페", "교회", "의료기관", "숙박", "휴게소", "놀이제공영업소"];
-const PUBLIC_SITES = ["도시공원", "어린이공원", "공원", "놀이터", "하천", "자연휴양림", "관광지", "유원지", "공공", "지역아동센터"];
-
-export function sitePublic(site: string): boolean {
-  return PUBLIC_SITES.some((k) => site.includes(k));
-}
+/** 실내로 보는 설치장소(행안부 분류명 기준) */
+const INDOOR_SITES = ["목욕장업소", "식품접객업소", "대규모점포", "실내", "키즈카페", "의료기관", "숙박", "휴게소", "놀이제공영업소", "박물관", "육아종합지원센터", "도서관", "백화점", "쇼핑"];
 
 async function main() {
   const t0 = Date.now();
