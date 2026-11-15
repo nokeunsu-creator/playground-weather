@@ -13,11 +13,11 @@
     "sync": "npm run build && npx cap sync android",
     "android": "npx cap open android",
     "apk": "npm run sync && cd android && ./gradlew assembleDebug",
-    "pipeline:places": "tsx pipeline/build-places.ts",
-    "pipeline:crawl": "tsx pipeline/sources/cpf-crawl.ts",
-    "pipeline:geocode": "tsx pipeline/geocode.ts",
-    "pipeline:weather": "tsx pipeline/fetch-weather.ts",
-    "pipeline:weather:mock": "tsx pipeline/fetch-weather.ts --mock"
+    "pipeline:places": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/build-places.ts",
+    "pipeline:crawl": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/sources/cpf-crawl.ts",
+    "pipeline:geocode": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/geocode.ts",
+    "pipeline:weather": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/fetch-weather.ts",
+    "pipeline:weather:mock": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/fetch-weather.ts --mock"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.3.0",

@@ -180,11 +180,20 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
                 </div>
               ))}
             </div>
-            {wx.days[0] && (
-              <div className="sub" style={{ marginTop: 6 }}>
-                오늘 최저 {wx.days[0].tmn ?? "-"}° · 최고 {wx.days[0].tmx ?? "-"}°
-              </div>
-            )}
+            {(() => {
+              const d0 = wx.days.find((d) => d.date === today);
+              const tomorrow = localIsoHour(new Date(now.getTime() + 86400000)).slice(0, 10);
+              const d1 = wx.days.find((d) => d.date === tomorrow);
+              const todayHours = wx.hours.filter((h) => h.t.startsWith(today));
+              const tmn = d0?.tmn ?? (todayHours.length ? Math.min(...todayHours.map((h) => h.temp)) : undefined);
+              const tmx = d0?.tmx ?? (todayHours.length ? Math.max(...todayHours.map((h) => h.temp)) : undefined);
+              return (
+                <div className="sub" style={{ marginTop: 6 }}>
+                  {tmn != null && tmx != null && `오늘 ${Math.round(tmn)}° ~ ${Math.round(tmx)}°`}
+                  {d1 && ` · 내일 ${d1.tmn ?? "-"}° ~ ${d1.tmx ?? "-"}°`}
+                </div>
+              );
+            })()}
           </section>
 
           <section className="card">

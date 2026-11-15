@@ -29,14 +29,21 @@ const MOCK = argv.includes("--mock") || !KEY;
 const ONLY = arg("--only");
 const UA = "PlaygroundWeather-pipeline/0.1";
 
-/** 보건기상지수 오퍼레이션 이름(키 발급 후 활용가이드와 대조해 수정) */
+/**
+ * 지수 오퍼레이션(2026-11-15 data.go.kr 상세 페이지에서 확인).
+ * - 생활기상지수 조회서비스(4.0, 15085288): LivingWthrIdxServiceV5 / getUVIdxV5, getAirDiffusionIdxV5
+ * - 꽃가루농도위험지수 조회서비스(3.0, 15085289): HealthWthrIdxServiceV3 / getOakPollenRiskIdxV3, getPinePollenRiskIdxV3,
+ *   getWeedsPollenRiskndxV3 (공식 오퍼레이션명의 오타 그대로). 제공기간 밖이면 resultCode 99.
+ * - 감기가능지수·천식지수는 별도 보건기상지수 서비스라 현재 미신청 → 비활성(months: [])
+ */
 const IDX_OPS = {
-  uv: { svc: "LivingWthrIdxServiceV4", op: "getUVIdxV4" },
-  pollenOak: { svc: "HealthWthrIdxServiceV4", op: "getOakPollenRiskIdxV4", months: [4, 5, 6] },
-  pollenPine: { svc: "HealthWthrIdxServiceV4", op: "getPinePollenRiskIdxV4", months: [4, 5, 6] },
-  pollenWeed: { svc: "HealthWthrIdxServiceV4", op: "getWeedsPollenRiskIdxV4", months: [8, 9, 10] },
-  cold: { svc: "HealthWthrIdxServiceV4", op: "getColdIdxV4", months: [9, 10, 11, 12, 1, 2, 3, 4] },
-  asthma: { svc: "HealthWthrIdxServiceV4", op: "getAsthmaIdxV4" },
+  uv: { svc: "LivingWthrIdxServiceV5", op: "getUVIdxV5" },
+  stagnation: { svc: "LivingWthrIdxServiceV5", op: "getAirDiffusionIdxV5" },
+  pollenOak: { svc: "HealthWthrIdxServiceV3", op: "getOakPollenRiskIdxV3", months: [3, 4, 5, 6] },
+  pollenPine: { svc: "HealthWthrIdxServiceV3", op: "getPinePollenRiskIdxV3", months: [3, 4, 5, 6] },
+  pollenWeed: { svc: "HealthWthrIdxServiceV3", op: "getWeedsPollenRiskndxV3", months: [8, 9, 10] },
+  cold: { svc: "HealthWthrIdxServiceV3", op: "getColdIdxV3", months: [] as number[] },
+  asthma: { svc: "HealthWthrIdxServiceV3", op: "getAsthmaIdxV3", months: [] as number[] },
 };
 
 // ---------------- 시간(KST) ----------------
@@ -132,9 +139,10 @@ interface Station {
   dmX: string;
   dmY: string;
 }
+/** 에어코리아 대기오염정보(15073861). 서비스명 철자 주의: ArpltnInforInqireSvc */
 async function airSido(sidoName: string): Promise<AirItem[]> {
   const qs = new URLSearchParams({ returnType: "json", numOfRows: "1000", pageNo: "1", sidoName, ver: "1.3" });
-  const url = `https://apis.data.go.kr/B552584/ArpltnInfoInqireSvc/getCtprvnRltmMesureDnsty?serviceKey=${encodeURIComponent(KEY!)}&${qs}`;
+  const url = `https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty?serviceKey=${encodeURIComponent(KEY!)}&${qs}`;
   const j = (await getJson(url)) as { response: { header: { resultCode: string }; body?: { items?: AirItem[] } } };
   return j.response.body?.items ?? [];
 }
@@ -299,10 +307,18 @@ async function realSnapshots(sggs: SggInfo[], now: Date): Promise<{ ok: WxSnapsh
     } catch (e) {
       console.warn(`[wx] uv ${sd.short}: ${(e as Error).message}`);
     }
+    try {
+      const st = await kmaIdx(IDX_OPS.stagnation.svc, IDX_OPS.stagnation.op, sd.areaNo, idxTime);
+      const v = Number(st?.h0 ?? st?.h3);
+      // 대기정체지수는 25/50/75/100 (낮음/보통/높음/매우높음) → 0~3
+      if (Number.isFinite(v)) out.idx.stagnation = v > 3 ? Math.min(3, Math.max(0, Math.round(v / 25) - 1)) : v;
+    } catch {
+      /* 선택 지수 */
+    }
     const pollen: number[] = [];
     for (const key of ["pollenOak", "pollenPine", "pollenWeed", "cold", "asthma"] as const) {
       const op = IDX_OPS[key];
-      if ("months" in op && !op.months.includes(month)) continue;
+      if (!op.months.includes(month)) continue;
       try {
         const row = await kmaIdx(op.svc, op.op, sd.areaNo, idxTime);
         const v = Number(row?.today ?? row?.h0 ?? row?.h3);
@@ -330,6 +346,7 @@ async function realSnapshots(sggs: SggInfo[], now: Date): Promise<{ ok: WxSnapsh
     const m = matchSgg(st.addr);
     if (m) stationSgg.set(st.stationName, m.code);
   }
+  if (stations.length === 0) console.warn("[wx] 측정소정보 API 없음 → 측정소 이름이 시군구명과 같은 경우만 매칭(광역시 위주)");
   const airBySido = new Map<string, AirItem[]>();
   for (const sd of SIDO) {
     if (aborted) break;
@@ -348,7 +365,12 @@ async function realSnapshots(sggs: SggInfo[], now: Date): Promise<{ ok: WxSnapsh
     const items = airBySido.get(s.airSido) ?? [];
     const valid = items.filter((it) => Number.isFinite(Number(it.pm10Value)) || Number.isFinite(Number(it.pm25Value)));
     let pick = valid.find((it) => stationSgg.get(it.stationName) === s.code);
-    if (!pick) {
+    // 측정소 목록이 없을 때: 측정소 이름이 시군구 이름과 같으면(서울 "강남구" 등) 채택
+    if (!pick && stations.length === 0) {
+      const last = s.name.split(" ").pop() ?? s.name;
+      pick = valid.find((it) => it.stationName === s.name || it.stationName === last);
+    }
+    if (!pick && stations.length > 0) {
       let best = Infinity;
       for (const it of valid) {
         const st = stations.find((x) => x.stationName === it.stationName);
