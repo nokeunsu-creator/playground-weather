@@ -23,18 +23,20 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function page(pageIndex: number): Promise<{ rows: RideRow[]; total: number }> {
   const url = `${BASE}?serviceKey=${encodeURIComponent(KEY!)}&type=json&pageIndex=${pageIndex}&recordCountPerPage=${PAGE}`;
-  for (let i = 1; i <= 3; i++) {
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
-    const text = await res.text();
-    if (text.includes("OpenAPI_ServiceResponse") || text.startsWith("<")) {
-      throw new Error(`gateway: ${text.replace(/\s+/g, " ").slice(0, 160)}`);
-    }
+  for (let i = 1; i <= 4; i++) {
     try {
+      // 응답이 안 오는 경우가 있어 30초 타임아웃 + 재시도
+      const res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(30000) });
+      const text = await res.text();
+      if (text.includes("OpenAPI_ServiceResponse") || text.startsWith("<")) {
+        throw new Error(`gateway: ${text.replace(/\s+/g, " ").slice(0, 160)}`);
+      }
       const j = JSON.parse(text) as { response: { body: { totalCnt: number; items: RideRow[] } } };
       return { rows: j.response.body.items ?? [], total: Number(j.response.body.totalCnt) };
     } catch (e) {
-      if (i === 3) throw e;
-      await sleep(1000 * i);
+      if (i === 4 || /gateway/.test(String(e))) throw e;
+      console.warn(`[rides] page ${pageIndex} retry ${i}: ${(e as Error).message}`);
+      await sleep(1500 * i);
     }
   }
   throw new Error("unreachable");
@@ -65,7 +67,7 @@ export async function fetchRides(opts: { maxAgeHours?: number } = {}): Promise<R
   add(first.rows);
   for (let p = 2; p <= pages; p++) {
     add((await page(p)).rows);
-    if (p % 50 === 0) console.log(`[rides] page ${p}/${pages} (${map.size} facilities)`);
+    if (p % 10 === 0) console.log(`[rides] page ${p}/${pages} (${map.size} facilities)`);
     await sleep(60);
   }
   const out: Record<string, string[]> = {};
