@@ -73,6 +73,8 @@ export async function fetchRides(opts: { maxAgeHours?: number } = {}): Promise<R
       if (r.dscdYmd && /\d/.test(r.dscdYmd)) continue; // 폐기된 기구
       const name = (r.rideStylCdNm || r.rideNm || "").trim();
       if (!name || !r.pfctSn) continue;
+      // 바닥재·표면재는 놀이기구가 아니라 제외
+      if (/표면재|바닥재|매트|포설/.test(name)) continue;
       const s = map.get(String(r.pfctSn)) ?? new Set<string>();
       s.add(name);
       map.set(String(r.pfctSn), s);

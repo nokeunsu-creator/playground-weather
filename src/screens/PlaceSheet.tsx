@@ -1,6 +1,6 @@
 import type { Place } from "../lib/types";
 import { fmtDistance } from "../lib/geo";
-import { KIND_ICON, KIND_LABEL, mapLinks, openExternal, Sheet } from "../components/common";
+import { KIND_ICON, KIND_LABEL, mapLinks, openExternal, rideList, Sheet } from "../components/common";
 import { Icon } from "../components/Icon";
 
 interface Props {
@@ -30,7 +30,8 @@ export function PlaceSheet({ place: p, km, fav, onFav, onMap, onClose }: Props) 
   if (p.kind === "playground") {
     rows.push(["설치장소", `${p.site ?? "–"}${p.indoor ? " · 실내" : ""}${p.water ? " · 물놀이형" : ""}`]);
     if (p.pub != null) rows.push(["구분", p.pub ? "공공" : "민간"]);
-    if (p.rides?.length) rows.push(["놀이기구", p.rides.join(", ")]);
+    const rides = rideList(p);
+    if (rides.length) rows.push(["놀이기구", rides.join(", ")]);
     rows.push(["설치일", p.installed ?? "–"]);
     if (p.inspectOk != null) rows.push(["안전검사", p.inspectOk ? "완료" : "확인 필요"]);
   } else if (p.kind === "park") {

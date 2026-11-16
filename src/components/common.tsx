@@ -17,6 +17,11 @@ export function isPublicSite(site: string): boolean {
   return !RESTRICTED_SITES.some((k) => site.includes(k));
 }
 
+/** 놀이기구 목록에서 바닥재·표면재(기구 아님) 제거 */
+export function rideList(p: Place): string[] {
+  return (p.rides ?? []).filter((r) => !/표면재|바닥재|매트|포설/.test(r));
+}
+
 export function placeDesc(p: Place): string {
   const parts: string[] = [];
   if (p.kind === "playground") {
@@ -24,7 +29,8 @@ export function placeDesc(p: Place): string {
     if (p.indoor) parts.push("실내");
     if (p.water) parts.push("물놀이");
     if (p.excellent) parts.push("우수시설");
-    if (p.rides?.length) parts.push(p.rides.slice(0, 3).join("·"));
+    const rides = rideList(p);
+    if (rides.length) parts.push(rides.slice(0, 3).join("·"));
   } else if (p.kind === "park") {
     if (p.parkType) parts.push(p.parkType);
     if (p.facilities?.length) parts.push(p.facilities.slice(0, 3).join("·"));
