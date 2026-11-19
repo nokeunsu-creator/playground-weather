@@ -1,6 +1,6 @@
 /** 공유 타입: 앱(src)과 파이프라인(pipeline)이 함께 사용한다. */
 
-export type PlaceKind = "playground" | "park" | "toilet" | "nursing";
+export type PlaceKind = "playground" | "park" | "toilet" | "nursing" | "venue";
 
 export interface Place {
   /** "pg:556961" | "pk:…" | "wc:…" | "ns:…" */
@@ -50,6 +50,17 @@ export interface Place {
   target?: string;
   /** 아빠 이용 가능 */
   father?: boolean;
+  // ---- 도서관·박물관(venue) ----
+  /** 어린이도서관 | 공공도서관 | 작은도서관 | 박물관 | 미술관 */
+  venue?: string;
+  /** 운영시간 "HH:MM-HH:MM". wd 평일, sat 토요일, hol 일요일·공휴일 */
+  hrs?: { wd?: string; sat?: string; hol?: string };
+  /** 정기 휴관 요일(0=일 … 6=토) */
+  closedDays?: number[];
+  /** 휴관 안내 원문 */
+  closed?: string;
+  /** 어린이 관람료 요약(무료, 어린이 2,000원 …) */
+  fee?: string;
 }
 
 export interface SggInfo {

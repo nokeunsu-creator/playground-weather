@@ -33,6 +33,7 @@ export function RegionPicker({ index, value, onPick, onClose }: { index: DataInd
               </span>
               <span className="desc">
                 놀이터 {s.counts.playground} · 공원 {s.counts.park} · 화장실 {s.counts.toilet}
+                {s.counts.venue ? ` · 도서관·박물관 ${s.counts.venue}` : ""}
                 {s.counts.nursing ? ` · 수유실 ${s.counts.nursing}` : ""}
               </span>
             </span>

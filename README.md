@@ -53,6 +53,7 @@ npm run apk           # android/app/build/outputs/apk/debug/app-debug.apk
 |---|---|---|
 | 기상청 단기예보·생활/보건기상지수, 에어코리아 | data.go.kr 활용신청(4개 API) → 일반 인증키 | `DATA_GO_KR_KEY` |
 | 놀이터 주소 지오코딩 + 지도 타일 | vworld.kr 인증키 | `VWORLD_KEY`, `VITE_VWORLD_KEY` |
+| 도서관·박물관 | data.go.kr 표준데이터(키 불필요, 15013109·15017323) | - |
 | 수유실(부산, 좌표 포함) | data.go.kr 15034033 `BusanNursingroomInfoService` 활용신청(같은 키). 미신청이면 수집을 건너뛴다 | `DATA_GO_KR_KEY` |
 | 지오코딩 대안 | developers.kakao.com REST 키 | `KAKAO_REST_KEY` |
 | 광고 | admob.google.com 앱·광고단위 | `VITE_ADMOB_*` |

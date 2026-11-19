@@ -14,6 +14,7 @@ import type { CpfRow } from "./sources/cpf-crawl";
 import { fetchAllPfct, type RawItem } from "./sources/pfct-api";
 import { fetchRides } from "./sources/ride-api";
 import { fetchBusanNursing } from "./sources/nursing";
+import { childFee, cleanText, closedWeekdays, isLongClosed, venueHours } from "./venue-utils";
 import { fetchDiaperIndex, lookupDiaper, type DiaperIndex } from "./sources/restroom-info";
 import { loadGeoCache, lookupGeo } from "./geocode";
 import { matchSgg, matchSido, normalizeAddr, SGG_BY_CODE, sidoOfSgg } from "./sgg";
@@ -269,6 +270,77 @@ async function main() {
     console.warn("[places] 놀이터 목록 없음(pipeline/.cache/cpf/list.jsonl) → 공원·화장실만 빌드");
   }
 
+  // ---- 비 오는 날 갈 곳: 도서관(공공·어린이·작은) + 박물관·미술관 ----
+  try {
+    const libs = await fetchStandard("libraries");
+    const KEEP = new Set(["공공도서관", "어린이도서관", "작은도서관"]);
+    let n = 0;
+    let ref = "";
+    for (const r of libs.rows) {
+      if (!KEEP.has(r.LBRRY_SE) || isLongClosed(r.CLOSE_DAY)) continue;
+      const lat = num(r.LATITUDE);
+      const lng = num(r.LONGITUDE);
+      if (!inKorea(lat, lng)) continue;
+      const addr = normalizeAddr(r.RDNMADR || "");
+      const sgg = matchSgg(addr)?.code ?? "";
+      (sgg ? places : pending).push({
+        id: `lb:${fnv(`${r.LBRRY_NM}|${addr}`)}`,
+        kind: "venue",
+        name: r.LBRRY_NM?.trim() || "도서관",
+        lat,
+        lng: lng as number,
+        addr,
+        sgg,
+        venue: r.LBRRY_SE,
+        hrs: venueHours(r.WEEKDAY_OPER_OPEN_HHMM, r.WEEKDAY_OPER_COLSE_HHMM, r.SAT_OPER_OPER_OPEN_HHMM, r.SAT_OPER_CLOSE_HHMM, r.HOLIDAY_OPER_OPEN_HHMM, r.HOLIDAY_CLOSE_OPEN_HHMM),
+        closed: cleanText(r.CLOSE_DAY),
+        closedDays: closedWeekdays(r.CLOSE_DAY),
+        fee: "무료",
+        tel: cleanText(r.PHONE_NUMBER),
+      });
+      n++;
+      if (r.REFERENCE_DATE > ref) ref = r.REFERENCE_DATE;
+    }
+    sources.libraries = `전국도서관표준데이터 ${n}곳(공공·어린이·작은도서관), 기준일 ${ref}`;
+  } catch (e) {
+    console.warn(`[places] 도서관 데이터 실패(${(e as Error).message}) → 건너뜀`);
+  }
+  try {
+    const mus = await fetchStandard("museums");
+    let n = 0;
+    let ref = "";
+    for (const r of mus.rows) {
+      if (isLongClosed(r.RSTDE_INFO)) continue;
+      const lat = num(r.LATITUDE);
+      const lng = num(r.LONGITUDE);
+      if (!inKorea(lat, lng)) continue;
+      const addr = normalizeAddr(r.RDNMADR || r.LNMADR || "");
+      const sgg = matchSgg(addr)?.code ?? "";
+      const fac = splitList(cleanText(r.FCLTY_INFO));
+      (sgg ? places : pending).push({
+        id: `ms:${fnv(`${r.FCLTY_NM}|${addr}`)}`,
+        kind: "venue",
+        name: r.FCLTY_NM?.trim() || "박물관",
+        lat,
+        lng: lng as number,
+        addr,
+        sgg,
+        venue: /미술/.test(r.FCLTY_NM ?? "") ? "미술관" : "박물관",
+        hrs: venueHours(r.WEEKDAY_OPER_OPEN_HHMM, r.WEEKDAY_OPER_COLSE_HHMM, r.HOLIDAY_OPER_OPEN_HHMM, r.HOLIDAY_CLOSE_OPEN_HHMM, r.HOLIDAY_OPER_OPEN_HHMM, r.HOLIDAY_CLOSE_OPEN_HHMM),
+        closed: cleanText(r.RSTDE_INFO),
+        closedDays: closedWeekdays(r.RSTDE_INFO),
+        fee: childFee(r.CHILD_CHRGE),
+        facilities: fac.length ? fac.slice(0, 8) : undefined,
+        tel: cleanText(r.OPER_PHONE_NUMBER) || cleanText(r.PHONE_NUMBER),
+      });
+      n++;
+      if (r.REFERENCE_DATE > ref) ref = r.REFERENCE_DATE;
+    }
+    sources.museums = `전국박물관미술관정보표준데이터 ${n}곳, 기준일 ${ref}`;
+  } catch (e) {
+    console.warn(`[places] 박물관 데이터 실패(${(e as Error).message}) → 건너뜀`);
+  }
+
   // ---- 수유실(좌표 있는 지역 데이터만) ----
   try {
     const ns = await fetchBusanNursing();
@@ -327,7 +399,7 @@ async function main() {
     fs.writeFileSync(path.join(OUT, "places", `${code}.json`), JSON.stringify(file));
     const lat = median(list.map((p) => p.lat));
     const lng = median(list.map((p) => p.lng));
-    const counts: Record<PlaceKind, number> = { playground: 0, park: 0, toilet: 0, nursing: 0 };
+    const counts: Record<PlaceKind, number> = { playground: 0, park: 0, toilet: 0, nursing: 0, venue: 0 };
     for (const p of list) counts[p.kind]++;
     sggInfos.push({
       code,

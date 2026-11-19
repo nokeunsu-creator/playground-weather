@@ -6,6 +6,7 @@ import { dayPlan, inputFromHour, inputFromNow, judge, pm10Grade, pm25Grade, PM_L
 import { BestTime } from "../components/BestTime";
 import { fmtAgo, localIsoHour, nearbyPlaces, type NearbyPlace } from "../lib/data";
 import { isPublicSite, PlaceRow, skyIcon } from "../components/common";
+import { venueStatus } from "../lib/venue";
 import { Icon } from "../components/Icon";
 import { RegionPicker } from "../components/RegionPicker";
 
@@ -69,7 +70,18 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
     const bad = j?.level === "bad";
     const pg = nearby.filter((n) => n.place.kind === "playground");
     const parks = nearby.filter((n) => n.place.kind === "park" && (n.place.facilities?.length ?? 0) > 0);
-    if (bad) return pg.filter((n) => n.place.indoor).slice(0, 5);
+    if (bad) {
+      // 실내 놀이터 + 도서관·박물관. 지금 문 연 곳을 먼저, 그다음 가까운 순
+      // 어린이집·교회 등 외부인이 못 들어가는 실내 놀이터는 빼고, 놀이터와 도서관·박물관을 3곳씩 섞는다
+      const closed = (n: NearbyPlace) => (n.place.kind === "venue" && venueStatus(n.place).open === false ? 1 : 0);
+      const byRank = (a: NearbyPlace, b: NearbyPlace) => closed(a) - closed(b) || a.km - b.km;
+      const venues = nearby.filter((n) => n.place.kind === "venue").sort(byRank);
+      const indoorPg = pg.filter((n) => n.place.indoor && isPublicSite(n.place.site ?? "")).sort(byRank);
+      const pick = [...indoorPg.slice(0, 3), ...venues.slice(0, 3)];
+      // 한쪽이 모자라면 다른 쪽으로 채운다
+      const rest = [...indoorPg.slice(3), ...venues.slice(3)].sort(byRank);
+      return [...pick, ...rest].slice(0, 6).sort(byRank);
+    }
     const outdoor = pg.filter((n) => !n.place.indoor && isPublicSite(n.place.site ?? ""));
     return [...outdoor, ...parks].sort((a, b) => a.km - b.km).slice(0, 5);
   }, [nearby, j?.level]);
@@ -244,12 +256,13 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
 
       {index && loc && (
         <section className="card">
-          <h2>{j?.level === "bad" ? "근처 실내 놀이터" : "근처 놀이터와 공원"}</h2>
+          <h2>{j?.level === "bad" ? "실내에서 놀 곳" : "근처 놀이터와 공원"}</h2>
+          {j?.level === "bad" && <div className="sub" style={{ marginBottom: 8 }}>실내 놀이터와 도서관·박물관이에요. 지금 문 연 곳을 먼저 보여 줘요.</div>}
           {!nearby && <div className="sub">찾는 중…</div>}
           {nearby && suggestions.length === 0 && (
             <div className="sub">
               {j?.level === "bad"
-                ? "2.5km 안에 등록된 실내 놀이시설이 없어요. 지도에서 범위를 넓혀 보세요."
+                ? "2.5km 안에 실내 놀이터·도서관·박물관이 없어요. 지도에서 범위를 넓혀 보세요."
                 : "2.5km 안에 등록된 공공 놀이터·공원이 아직 없어요. 지도에서 더 둘러보세요."}
             </div>
           )}

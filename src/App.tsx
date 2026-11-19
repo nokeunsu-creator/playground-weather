@@ -4,7 +4,7 @@ import { loadIndex, loadPlaces, loadWx, nearestSgg } from "./lib/data";
 import { getCurrentLocation, type Loc } from "./lib/location";
 import { DEFAULT_SETTINGS, loadSettings, subscribe, toggleFav, updateSettings, type Settings } from "./lib/store";
 import { initAds, maybeShowInterstitial } from "./lib/ads";
-import { rescheduleMorning } from "./lib/notify";
+import { rescheduleEvening, rescheduleMorning } from "./lib/notify";
 import { Home } from "./screens/Home";
 import { MapScreen, type MapFocus } from "./screens/MapScreen";
 import { PlaceSheet } from "./screens/PlaceSheet";
@@ -99,11 +99,15 @@ export function App() {
   // 아침 알림 재예약(설정·날씨가 바뀔 때)
   useEffect(() => {
     if (!sgg) return;
-    const key = JSON.stringify([settings.notify, settings.child, sgg.code, wx?.fetchedAt]);
+    const key = JSON.stringify([settings.notify, settings.evening, settings.child, sgg.code, wx?.fetchedAt]);
     if (key === notifKey.current) return;
     notifKey.current = key;
-    void rescheduleMorning({ ...settings.notify, snap: wx, child: settings.child, regionName: sgg.name });
-  }, [settings.notify, settings.child, sgg, wx]);
+    void (async () => {
+      // 권한 요청이 겹치지 않게 차례로 예약
+      await rescheduleMorning({ ...settings.notify, snap: wx, child: settings.child, regionName: sgg.name });
+      await rescheduleEvening({ ...settings.evening, snap: wx, child: settings.child, regionName: sgg.name });
+    })();
+  }, [settings.notify, settings.evening, settings.child, sgg, wx]);
 
   const openDetail = useCallback(
     async (place: Place, km?: number) => {

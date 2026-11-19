@@ -15,6 +15,7 @@ interface Props {
 }
 
 const HOURS = [6, 7, 8, 9];
+const EVENING_HOURS = [18, 19, 20, 21, 22];
 
 export function SettingsScreen({ settings: s, index, wx, sgg, onUseHere, onChangeRegion }: Props) {
   const [pick, setPick] = useState(false);
@@ -68,6 +69,36 @@ export function SettingsScreen({ settings: s, index, wx, sgg, onUseHere, onChang
               ))}
             </select>
             <select className="sel" value={s.notify.minute} onChange={(e) => void updateSettings({ notify: { ...s.notify, minute: Number(e.target.value) } })}>
+              {[0, 30].map((m) => (
+                <option key={m} value={m}>
+                  {m}분
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>저녁 알림</h2>
+        <div className="field">
+          <label>
+            내일 외출 계획
+            <small>내일 나가기 좋은 시간과 옷차림을 전날 저녁에 알려줘요</small>
+          </label>
+          <Switch on={s.evening.enabled} onChange={(enabled) => void updateSettings({ evening: { ...s.evening, enabled } })} />
+        </div>
+        <div className="field">
+          <label>시간</label>
+          <div style={{ display: "flex", gap: 6 }}>
+            <select className="sel" value={s.evening.hour} onChange={(e) => void updateSettings({ evening: { ...s.evening, hour: Number(e.target.value) } })}>
+              {EVENING_HOURS.map((h) => (
+                <option key={h} value={h}>
+                  {h}시
+                </option>
+              ))}
+            </select>
+            <select className="sel" value={s.evening.minute} onChange={(e) => void updateSettings({ evening: { ...s.evening, minute: Number(e.target.value) } })}>
               {[0, 30].map((m) => (
                 <option key={m} value={m}>
                   {m}분

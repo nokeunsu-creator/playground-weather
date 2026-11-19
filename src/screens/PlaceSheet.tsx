@@ -1,7 +1,8 @@
 import type { Place } from "../lib/types";
 import { fmtDistance } from "../lib/geo";
-import { KIND_ICON, KIND_LABEL, mapLinks, openExternal, rideList, Sheet } from "../components/common";
+import { KIND_LABEL, mapLinks, openExternal, placeIcon, rideList, Sheet } from "../components/common";
 import { floorList } from "../lib/rides";
+import { hoursRows, venueStatus } from "../lib/venue";
 import { Icon } from "../components/Icon";
 
 interface Props {
@@ -39,6 +40,14 @@ export function PlaceSheet({ place: p, km, fav, onFav, onMap, onClose }: Props) 
     if (p.inspectOk != null) rows.push(["안전검사", p.inspectOk ? "완료" : "확인 필요"]);
   } else if (p.kind === "park") {
     rows.push(["구분", p.parkType ?? "–"], ["시설", p.facilities?.join(", ") || "–"], ["면적", p.area ? `${Math.round(p.area).toLocaleString()}㎡` : "–"]);
+  } else if (p.kind === "venue") {
+    rows.push(["구분", p.venue ?? "–"]);
+    const st = venueStatus(p);
+    if (st.text) rows.push(["오늘", st.text]);
+    rows.push(...hoursRows(p));
+    if (p.closed) rows.push(["휴관", p.closed.replace(/\+/g, ", ")]);
+    if (p.fee) rows.push(["관람료", p.fee]);
+    if (p.facilities?.length) rows.push(["편의시설", p.facilities.join(", ")]);
   } else if (p.kind === "nursing") {
     rows.push(["위치", p.spot ?? "–"], ["이용대상", p.target ?? "–"]);
     if (p.father != null) rows.push(["아빠 이용", p.father ? "가능" : "어려움"]);
@@ -52,7 +61,7 @@ export function PlaceSheet({ place: p, km, fav, onFav, onMap, onClose }: Props) 
     <Sheet onClose={onClose}>
       <div className="hd">
         <span className={`badge ${p.kind}`}>
-          <Icon name={KIND_ICON[p.kind]} size={24} />
+          <Icon name={placeIcon(p)} size={24} />
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2>{p.name}</h2>

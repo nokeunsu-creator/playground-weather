@@ -1,5 +1,5 @@
 /**
- * 공공데이터포털 표준데이터(전국도시공원정보, 전국공중화장실) 다운로드.
+ * 공공데이터포털 표준데이터(도시공원, 공중화장실, 도서관, 박물관·미술관) 다운로드.
  * 포털의 "다운로드" 버튼이 쓰는 내부 JSON 엔드포인트를 그대로 사용한다(로그인·키 불필요).
  *   GET /download/columList.json?pk={pk}&ext=CSV            → 컬럼 목록 + totalCount
  *   GET /download/standard.json?publicDataPk={pk}&colNmList=…&perPage=10000&page=N
@@ -11,6 +11,8 @@ import path from "node:path";
 export const STD_DATASETS = {
   parks: { pk: "15012890", label: "전국도시공원정보표준데이터" },
   toilets: { pk: "15012892", label: "전국공중화장실표준데이터" },
+  libraries: { pk: "15013109", label: "전국도서관표준데이터" },
+  museums: { pk: "15017323", label: "전국박물관미술관정보표준데이터" },
 } as const;
 
 export type StdName = keyof typeof STD_DATASETS;

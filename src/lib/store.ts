@@ -19,6 +19,8 @@ export interface Settings {
   homeSgg?: string;
   homeName?: string;
   notify: { enabled: boolean; hour: number; minute: number };
+  /** 전날 저녁 "내일 언제 나갈까" 알림 */
+  evening: { enabled: boolean; hour: number; minute: number };
   favorites: FavPlace[];
   /** 마지막 위치 */
   last?: { lat: number; lng: number; at: string };
@@ -30,6 +32,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   child: { age: "toddler", sensitive: false },
   notify: { enabled: false, hour: 7, minute: 30 },
+  evening: { enabled: false, hour: 20, minute: 0 },
   favorites: [],
   detailViews: 0,
   onboarded: false,

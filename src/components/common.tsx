@@ -4,10 +4,17 @@ import { fmtDistance } from "../lib/geo";
 import { Icon, type IconName } from "./Icon";
 
 import { floorList, rideList } from "../lib/rides";
+import { venueStatus } from "../lib/venue";
 
 export { rideList };
-export const KIND_LABEL: Record<PlaceKind, string> = { playground: "놀이터", park: "공원", toilet: "화장실", nursing: "수유실" };
-export const KIND_ICON: Record<PlaceKind, IconName> = { playground: "slide", park: "tree", toilet: "toilet", nursing: "bottle" };
+export const KIND_LABEL: Record<PlaceKind, string> = { playground: "놀이터", park: "공원", toilet: "화장실", nursing: "수유실", venue: "도서관·박물관" };
+export const KIND_ICON: Record<PlaceKind, IconName> = { playground: "slide", park: "tree", toilet: "toilet", nursing: "bottle", venue: "book" };
+/** 장소 하나에 맞는 아이콘(박물관·미술관은 기둥 아이콘, 물놀이 놀이터는 물방울) */
+export function placeIcon(p: Place): IconName {
+  if (p.kind === "venue" && /박물관|미술관/.test(p.venue ?? "")) return "museum";
+  if (p.kind === "playground" && p.water) return "drop";
+  return KIND_ICON[p.kind];
+}
 
 /**
  * 외부인이 못 들어가는 설치장소. 행안부 분류 기준 85,416곳 중 주택단지 46,277·유치원 7,186·학교 6,945·어린이집 6,864 등.
@@ -31,6 +38,11 @@ export function placeDesc(p: Place): string {
     if (rides.length) parts.push(rides.slice(0, 3).join("·"));
     const floors = floorList(p);
     if (floors.includes("모래")) parts.push("모래");
+  } else if (p.kind === "venue") {
+    if (p.venue) parts.push(p.venue);
+    const st = venueStatus(p);
+    if (st.text) parts.push(st.text);
+    if (p.fee) parts.push(p.fee);
   } else if (p.kind === "nursing") {
     if (p.spot) parts.push(p.spot);
     if (p.target) parts.push(p.target);
@@ -50,7 +62,7 @@ export function PlaceRow({ place, km, onClick }: { place: Place; km?: number; on
   return (
     <button className="row" onClick={onClick}>
       <span className={`badge ${place.kind}`}>
-        <Icon name={KIND_ICON[place.kind]} size={20} />
+        <Icon name={placeIcon(place)} size={20} />
       </span>
       <span className="body">
         <span className="name">{place.name}</span>

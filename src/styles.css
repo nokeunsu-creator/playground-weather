@@ -1101,3 +1101,9 @@ select.sel {
     white-space: nowrap;
   }
 }
+
+/* ---- 도서관·박물관 ---- */
+.badge.venue,
+.pw-marker.venue {
+  background: var(--teal, #30b0c7);
+}

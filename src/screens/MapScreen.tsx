@@ -6,7 +6,7 @@ import type { Settings } from "../lib/store";
 import type { Loc } from "../lib/location";
 import { loadPlaces, nearestSggs } from "../lib/data";
 import { haversineKm } from "../lib/geo";
-import { isPublicSite, KIND_ICON, KIND_LABEL, Sheet } from "../components/common";
+import { isPublicSite, KIND_ICON, KIND_LABEL, placeIcon, Sheet } from "../components/common";
 import { FLOORS, matchesRides, RIDE_GROUPS, rideKeys } from "../lib/rides";
 import { Icon, iconSvg } from "../components/Icon";
 
@@ -58,7 +58,7 @@ function markerIcon(p: Place): L.DivIcon {
   const cls = p.kind === "playground" && p.indoor ? "indoor" : p.kind;
   return L.divIcon({
     className: "",
-    html: `<div class="pw-marker ${cls}">${iconSvg(p.kind === "playground" && p.water ? "drop" : KIND_ICON[p.kind], 15)}</div>`,
+    html: `<div class="pw-marker ${cls}">${iconSvg(placeIcon(p), 15)}</div>`,
     iconSize: [30, 30],
     iconAnchor: [15, 30],
   });
@@ -70,11 +70,14 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
   const meRef = useRef<L.Marker | undefined>(undefined);
   const loaded = useRef(new Map<string, Place[]>());
   const [places, setPlaces] = useState<Place[]>([]);
-  const [filters, setFilters] = useState<Filters>({ kinds: { playground: true, park: true, toilet: true, nursing: true }, publicOnly: true, indoor: false, water: false, diaper: false, rides: [] });
+  const [filters, setFilters] = useState<Filters>({ kinds: { playground: true, park: true, toilet: true, nursing: true, venue: true }, publicOnly: true, indoor: false, water: false, diaper: false, rides: [] });
   const [loading, setLoading] = useState(false);
   const [rideSheet, setRideSheet] = useState(false);
   const hasNursing = useMemo(() => index.sgg.some((s) => (s.counts.nursing ?? 0) > 0), [index]);
-  const kinds: PlaceKind[] = hasNursing ? ["playground", "park", "toilet", "nursing"] : ["playground", "park", "toilet"];
+  const hasVenue = useMemo(() => index.sgg.some((s) => (s.counts.venue ?? 0) > 0), [index]);
+  const kinds = (["playground", "park", "toilet", "venue", "nursing"] as PlaceKind[]).filter(
+    (k) => (k !== "nursing" || hasNursing) && (k !== "venue" || hasVenue),
+  );
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
@@ -165,6 +168,8 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
         if (f.indoor && !p.indoor) return false;
         if (f.water && !p.water) return false;
         if (!matchesRides(p, f.rides, f.floor)) return false;
+      } else if (p.kind === "venue" && f.indoor && !(f.water || f.rides.length || f.floor)) {
+        // "실내" 필터는 도서관·박물관도 함께 보여 준다
       } else if (f.indoor || f.water || f.rides.length || f.floor) return false;
       if (f.diaper && !((p.kind === "toilet" && p.diaper) || p.kind === "nursing")) return false;
       return true;
@@ -185,7 +190,7 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
   }, [visible, onOpenDetail, loc]);
 
   const counts = useMemo(() => {
-    const c: Record<PlaceKind, number> = { playground: 0, park: 0, toilet: 0, nursing: 0 };
+    const c: Record<PlaceKind, number> = { playground: 0, park: 0, toilet: 0, nursing: 0, venue: 0 };
     for (const p of visible) c[p.kind]++;
     return c;
   }, [visible]);
@@ -231,7 +236,7 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
         <div className="map-hint">
           {loading
             ? "불러오는 중…"
-            : `놀이터 ${counts.playground} · 공원 ${counts.park} · 화장실 ${counts.toilet}${counts.nursing ? ` · 수유실 ${counts.nursing}` : ""}`}
+            : `놀이터 ${counts.playground} · 공원 ${counts.park} · 화장실 ${counts.toilet}${counts.venue ? ` · 도서관·박물관 ${counts.venue}` : ""}${counts.nursing ? ` · 수유실 ${counts.nursing}` : ""}`}
         </div>
       </div>
       {rideSheet && (
