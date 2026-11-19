@@ -52,7 +52,8 @@ npm run apk           # android/app/build/outputs/apk/debug/app-debug.apk
 | 용도 | 어디서 | 환경변수 |
 |---|---|---|
 | 기상청 단기예보·생활/보건기상지수, 에어코리아 | data.go.kr 활용신청(4개 API) → 일반 인증키 | `DATA_GO_KR_KEY` |
-| 놀이터 주소 지오코딩 + 지도 타일 | vworld.kr 인증키 | `VWORLD_KEY`, `VITE_VWORLD_KEY` |
+| 지도 타일 | vworld.kr 인증키(유형 APP, 활용 API는 WMTS/TMS 만. 개발키 6개월·3회 연장, 출시 후 운영키 신청). Base 타일은 6~19단계만 있어 지도 최소 6단계 | `VITE_VWORLD_KEY` |
+| (예비) 놀이터 주소 지오코딩 | 같은 브이월드 키에 지오코더 API 추가 필요. 결과 저장이 약관상 막혀 운영에는 쓰지 않으므로 비워 둔다 | `VWORLD_KEY` |
 | 갯벌체험지수·물때 | data.go.kr 15142489(갯벌체험지수)·15156018(조석예보 고·저조) 활용신청(같은 키, 자동승인). 미신청이면 체험마을 목록만 게시 | `DATA_GO_KR_KEY` |
 | 도서관·박물관 | data.go.kr 표준데이터(키 불필요, 15013109·15017323) | - |
 | 수유실(부산, 좌표 포함) | data.go.kr 15034033 `BusanNursingroomInfoService` 활용신청(같은 키). 미신청이면 수집을 건너뛴다 | `DATA_GO_KR_KEY` |

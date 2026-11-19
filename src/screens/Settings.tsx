@@ -174,9 +174,9 @@ export function SettingsScreen({ settings: s, index, wx, sgg, onUseHere, onChang
       <section className="card">
         <h2>정보</h2>
         <p className="notice">
-          놀이터 날씨 v0.1.0 · 서버 없이 공공데이터만 사용합니다.
+          놀이터 날씨 v{(import.meta.env.VITE_APP_VERSION as string | undefined) ?? "개발"} · 서버 없이 공공데이터만 사용합니다.
           <br />
-          데이터: 기상청 단기예보·생활기상지수, 한국환경공단 에어코리아, 행정안전부 어린이놀이시설·도시공원·공중화장실 표준데이터(공공누리 제1유형, 출처표시).
+          데이터: 기상청 단기예보·생활기상지수, 한국환경공단 에어코리아, 행정안전부 어린이놀이시설·도시공원·공중화장실 표준데이터, 국립해양조사원 조석예보·갯벌체험지수, 부산광역시 수유실 정보, 도서관·박물관미술관·농어촌체험휴양마을 표준데이터(공공누리 제1유형, 출처표시). 배경 지도: 국토교통부 브이월드.
           <br />
           {index && `장소 데이터 빌드 ${index.builtAt.slice(0, 16).replace("T", " ")} UTC · 시군구 ${index.sgg.length}개`}
           <br />
