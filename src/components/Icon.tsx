@@ -30,7 +30,9 @@ export type IconName =
   | "bell"
   | "child"
   | "share"
-  | "pin";
+  | "pin"
+  | "bottle"
+  | "filter";
 
 const P: Record<IconName, string> = {
   house: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
@@ -65,6 +67,8 @@ const P: Record<IconName, string> = {
   child: "M12 3a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM7 12l5-2 5 2M9 11v10M15 11v10M9 16h6",
   share: "M12 3v12M8 7l4-4 4 4M5 13v7h14v-7",
   pin: "M12 21s-6-5.3-6-11a6 6 0 1 1 12 0c0 5.7-6 11-6 11zM12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
+  bottle: "M11 2h2l1 3h-4zM9 5h6M9.5 5L8 8.5V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V8.5L14.5 5M8 12h3M8 16h3",
+  filter: "M4 6h16M7 12h10M10 18h4",
 };
 
 export const ICON_PATHS = P;

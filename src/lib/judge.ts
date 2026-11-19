@@ -290,32 +290,73 @@ export interface BestWindow {
   end: string;
   score: number;
   level: Level;
+  /** 구간 안에서 가장 큰 감점 사유(있을 때) */
+  reason?: string;
 }
 
-/** 오늘 07~19시 중 2시간 창의 평균 점수가 가장 높은 구간 */
-export function bestWindow(snap: WxSnapshot, child: ChildProfile, today: string): BestWindow | undefined {
-  const rows = snap.hours
-    .filter((h) => h.t.startsWith(today))
-    .filter((h) => {
-      const hh = Number(h.t.slice(11, 13));
-      return hh >= 7 && hh <= 19;
+export interface HourCell {
+  /** "YYYY-MM-DDTHH:00" */
+  t: string;
+  hour: number;
+  score: number;
+  level: Level;
+  /** 가장 큰 감점 사유 */
+  top?: string;
+}
+
+export interface DayPlan {
+  date: string;
+  /** 07~19시 중 fromKey 이후(포함) 예보가 있는 시간 */
+  cells: HourCell[];
+  best?: BestWindow;
+}
+
+/** 놀이터 시간으로 보는 범위 */
+export const PLAY_START = 7;
+export const PLAY_END = 19;
+
+function worse(a: Level, b: Level): Level {
+  return a === "bad" || b === "bad" ? "bad" : a === "caution" || b === "caution" ? "caution" : "good";
+}
+
+/**
+ * 하루치 시간별 판정과 가장 좋은 2시간 구간.
+ * fromKey 를 주면 그 시각 이전(지나간 시간)은 빼고 계산한다.
+ * 남은 시간이 1시간뿐이면 1시간 구간을 돌려준다.
+ */
+export function dayPlan(snap: WxSnapshot, child: ChildProfile, date: string, fromKey?: string): DayPlan {
+  const cells: HourCell[] = snap.hours
+    .filter((h) => h.t.startsWith(date) && (!fromKey || h.t >= fromKey))
+    .map((h) => ({ h, hour: Number(h.t.slice(11, 13)) }))
+    .filter(({ hour }) => hour >= PLAY_START && hour <= PLAY_END)
+    .map(({ h, hour }) => {
+      const j = judge(inputFromHour(h, snap.now, snap.idx), child);
+      return { t: h.t, hour, score: j.score, level: j.level, top: j.reasons[0]?.text };
     });
-  if (rows.length < 2) return undefined;
-  const scores = rows.map((h) => judge(inputFromHour(h, snap.now, snap.idx), child));
+  const hh = (n: number) => `${String(n).padStart(2, "0")}:00`;
   let best: BestWindow | undefined;
-  for (let i = 0; i < rows.length - 1; i++) {
-    const s = (scores[i].score + scores[i + 1].score) / 2;
-    if (!best || s > best.score) {
-      const a = scores[i].level;
-      const b = scores[i + 1].level;
-      const lv: Level = a === "bad" || b === "bad" ? "bad" : a === "caution" || b === "caution" ? "caution" : "good";
-      best = {
-        start: rows[i].t.slice(11, 16),
-        end: `${String(Number(rows[i + 1].t.slice(11, 13)) + 1).padStart(2, "0")}:00`,
-        score: Math.round(s),
-        level: lv,
-      };
+  if (cells.length === 1) {
+    const c = cells[0];
+    best = { start: hh(c.hour), end: hh(c.hour + 1), score: c.score, level: c.level, reason: c.top };
+  }
+  // 점수가 같으면 이른 아침(9시 전)보다 낮 시간을 고른다
+  const early = (h: number) => (h < 9 ? 0.5 : 0);
+  let bestKey = -Infinity;
+  for (let i = 0; i < cells.length - 1; i++) {
+    const a = cells[i];
+    const b = cells[i + 1];
+    if (b.hour !== a.hour + 1) continue;
+    const s = (a.score + b.score) / 2;
+    const key = s - early(a.hour);
+    if (key > bestKey) {
+      bestKey = key;
+      best = { start: hh(a.hour), end: hh(b.hour + 1), score: Math.round(s), level: worse(a.level, b.level), reason: a.top ?? b.top };
     }
   }
-  return best;
+  return { date, cells, best };
+}
+
+/** 오늘(fromKey 이후) 07~19시 중 2시간 창의 평균 점수가 가장 높은 구간 */
+export function bestWindow(snap: WxSnapshot, child: ChildProfile, today: string, fromKey?: string): BestWindow | undefined {
+  return dayPlan(snap, child, today, fromKey).best;
 }

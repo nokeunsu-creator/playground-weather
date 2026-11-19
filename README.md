@@ -53,6 +53,7 @@ npm run apk           # android/app/build/outputs/apk/debug/app-debug.apk
 |---|---|---|
 | 기상청 단기예보·생활/보건기상지수, 에어코리아 | data.go.kr 활용신청(4개 API) → 일반 인증키 | `DATA_GO_KR_KEY` |
 | 놀이터 주소 지오코딩 + 지도 타일 | vworld.kr 인증키 | `VWORLD_KEY`, `VITE_VWORLD_KEY` |
+| 수유실(부산, 좌표 포함) | data.go.kr 15034033 `BusanNursingroomInfoService` 활용신청(같은 키). 미신청이면 수집을 건너뛴다 | `DATA_GO_KR_KEY` |
 | 지오코딩 대안 | developers.kakao.com REST 키 | `KAKAO_REST_KEY` |
 | 광고 | admob.google.com 앱·광고단위 | `VITE_ADMOB_*` |
 
@@ -71,3 +72,7 @@ GitHub Actions 에서는 같은 이름의 Secrets 로 넣는다(저장소 Settin
 
 ## 데이터 출처·라이선스
 기상청, 한국환경공단(에어코리아), 행정안전부(어린이놀이시설 안전관리시스템, 도시공원·공중화장실 표준데이터), 법정동코드(code.go.kr). 공공누리 제1유형(출처표시). 앱 안에 출처를 표시한다.
+
+**수유실**: 전국 단위 공개 데이터가 없다(맘편한 세상은 이용허락 없음 → 사용 안 함). 좌표가 있는 부산시 API만 쓴다. 제주·성남·경기 광주 파일데이터는 주소만 있고 지오코딩 결과 저장이 약관상 막혀 있어 쓰지 않는다. 전국 기저귀교환대는 공중화장실 표준데이터의 기저귀교환대 위치 항목으로 보여 준다.
+
+**놀이기구·바닥**: 행안부 기구정보(15124521)의 기구 유형을 그대로 저장하고, 앱이 `src/lib/rides.ts` 에서 기구 묶음(미끄럼틀·그네·짚라인 …)과 바닥(모래·고무)으로 나눈다.

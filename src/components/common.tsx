@@ -3,8 +3,11 @@ import type { Place, PlaceKind, WxHour } from "../lib/types";
 import { fmtDistance } from "../lib/geo";
 import { Icon, type IconName } from "./Icon";
 
-export const KIND_LABEL: Record<PlaceKind, string> = { playground: "놀이터", park: "공원", toilet: "화장실" };
-export const KIND_ICON: Record<PlaceKind, IconName> = { playground: "slide", park: "tree", toilet: "toilet" };
+import { floorList, rideList } from "../lib/rides";
+
+export { rideList };
+export const KIND_LABEL: Record<PlaceKind, string> = { playground: "놀이터", park: "공원", toilet: "화장실", nursing: "수유실" };
+export const KIND_ICON: Record<PlaceKind, IconName> = { playground: "slide", park: "tree", toilet: "toilet", nursing: "bottle" };
 
 /**
  * 외부인이 못 들어가는 설치장소. 행안부 분류 기준 85,416곳 중 주택단지 46,277·유치원 7,186·학교 6,945·어린이집 6,864 등.
@@ -17,11 +20,6 @@ export function isPublicSite(site: string): boolean {
   return !RESTRICTED_SITES.some((k) => site.includes(k));
 }
 
-/** 놀이기구 목록에서 바닥재·표면재(기구 아님) 제거 */
-export function rideList(p: Place): string[] {
-  return (p.rides ?? []).filter((r) => !/표면재|바닥재|매트|포설/.test(r));
-}
-
 export function placeDesc(p: Place): string {
   const parts: string[] = [];
   if (p.kind === "playground") {
@@ -31,6 +29,12 @@ export function placeDesc(p: Place): string {
     if (p.excellent) parts.push("우수시설");
     const rides = rideList(p);
     if (rides.length) parts.push(rides.slice(0, 3).join("·"));
+    const floors = floorList(p);
+    if (floors.includes("모래")) parts.push("모래");
+  } else if (p.kind === "nursing") {
+    if (p.spot) parts.push(p.spot);
+    if (p.target) parts.push(p.target);
+    if (p.father) parts.push("아빠 이용 가능");
   } else if (p.kind === "park") {
     if (p.parkType) parts.push(p.parkType);
     if (p.facilities?.length) parts.push(p.facilities.slice(0, 3).join("·"));

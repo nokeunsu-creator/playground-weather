@@ -21,6 +21,7 @@
   --pg: #ff9500;
   --park: #34c759;
   --wc: #5856d6;
+  --nurse: #ff2d55;
   --tab-bg: rgba(249, 249, 249, 0.92);
   --radius: 16px;
   --tab-h: 52px;
@@ -566,6 +567,8 @@ a {
   width: 100%;
   height: 100%;
   background: #e5e9ef;
+  /* Leaflet 컨트롤(z-index 1000)이 바텀시트(601) 위로 올라오지 않게 */
+  isolation: isolate;
 }
 .map-top {
   position: absolute;
@@ -964,4 +967,128 @@ select.sel {
 .feature span {
   color: var(--muted);
   font-size: 13px;
+}
+
+/* ---- 수유실 ---- */
+.badge.nursing,
+.pw-marker.nursing {
+  background: var(--nurse);
+}
+
+/* ---- 언제 나갈까요 ---- */
+.best-line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+.best-line svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.best-line.good svg {
+  color: var(--good);
+}
+.best-line.caution svg {
+  color: var(--caution);
+}
+.best-line.bad svg {
+  color: var(--bad);
+}
+.best-line small {
+  display: block;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.tl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.tl-day {
+  width: 28px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tl-bar {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(13, 1fr);
+  gap: 3px;
+}
+.tl-c {
+  display: block;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--fill);
+}
+.tl-c.good {
+  background: rgba(52, 199, 89, 0.55);
+}
+.tl-c.caution {
+  background: rgba(255, 149, 0, 0.55);
+}
+.tl-c.bad {
+  background: rgba(255, 59, 48, 0.45);
+}
+.tl-c.best {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+.tl-c.good.best {
+  background: var(--good);
+}
+.tl-c.caution.best {
+  background: var(--caution);
+}
+.tl-axis {
+  flex: 1;
+  position: relative;
+  height: 14px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.tl-axis span {
+  position: absolute;
+  top: 0;
+}
+.tl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tl-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.tl-legend .tl-c {
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* ---- 기구 시트 ---- */
+.ride-sec {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 14px 0 6px;
+}
+.chip small {
+  margin-left: 3px;
+  opacity: 0.6;
+  font-size: 11px;
+}
+.chip:disabled {
+  opacity: 0.35;
 }

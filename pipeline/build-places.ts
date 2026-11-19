@@ -13,6 +13,7 @@ import { fetchStandard } from "./sources/standard-data";
 import type { CpfRow } from "./sources/cpf-crawl";
 import { fetchAllPfct, type RawItem } from "./sources/pfct-api";
 import { fetchRides } from "./sources/ride-api";
+import { fetchBusanNursing } from "./sources/nursing";
 import { loadGeoCache, lookupGeo } from "./geocode";
 import { matchSgg, matchSido, normalizeAddr, SGG_BY_CODE, sidoOfSgg } from "./sgg";
 import { haversineKm } from "../src/lib/geo";
@@ -253,6 +254,33 @@ async function main() {
     console.warn("[places] 놀이터 목록 없음(pipeline/.cache/cpf/list.jsonl) → 공원·화장실만 빌드");
   }
 
+  // ---- 수유실(좌표 있는 지역 데이터만) ----
+  try {
+    const ns = await fetchBusanNursing();
+    for (const r of ns.rows) {
+      if (!inKorea(r.lat, r.lng)) continue;
+      const addr = normalizeAddr(r.addr);
+      const sgg = matchSgg(addr)?.code ?? "";
+      (sgg ? places : pending).push({
+        id: `ns:${fnv(`${r.name}|${addr}|${r.spot ?? ""}`)}`,
+        kind: "nursing",
+        name: r.name,
+        lat: r.lat,
+        lng: r.lng,
+        addr,
+        sgg,
+        spot: r.spot,
+        target: r.target,
+        father: r.father,
+        tel: r.tel,
+      });
+    }
+    sources.nursing = ns.note;
+    console.log(`[places] ${ns.note}`);
+  } catch (e) {
+    console.warn(`[places] 수유실 수집 실패(${(e as Error).message}) → 건너뜀`);
+  }
+
   // ---- 2차 배정: 옛 주소(개편 전 시군구) → 같은 시도 안 가장 가까운 시군구 ----
   const fallback = makeFallback(places);
   for (const p of pending) {
@@ -284,7 +312,7 @@ async function main() {
     fs.writeFileSync(path.join(OUT, "places", `${code}.json`), JSON.stringify(file));
     const lat = median(list.map((p) => p.lat));
     const lng = median(list.map((p) => p.lng));
-    const counts: Record<PlaceKind, number> = { playground: 0, park: 0, toilet: 0 };
+    const counts: Record<PlaceKind, number> = { playground: 0, park: 0, toilet: 0, nursing: 0 };
     for (const p of list) counts[p.kind]++;
     sggInfos.push({
       code,

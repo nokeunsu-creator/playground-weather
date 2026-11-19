@@ -57,7 +57,7 @@ export async function fetchRides(opts: { maxAgeHours?: number } = {}): Promise<R
   const partial = path.join(CACHE, "rides.partial.json");
   const checkpoint = (p: number) => {
     const out: Record<string, string[]> = {};
-    for (const [k, v] of map) out[k] = [...v].slice(0, 12);
+    for (const [k, v] of map) out[k] = [...v].slice(0, 16);
     fs.writeFileSync(partial, JSON.stringify({ page: p, out }));
   };
   // 중간에 끊겨도 이어받기
@@ -73,8 +73,7 @@ export async function fetchRides(opts: { maxAgeHours?: number } = {}): Promise<R
       if (r.dscdYmd && /\d/.test(r.dscdYmd)) continue; // 폐기된 기구
       const name = (r.rideStylCdNm || r.rideNm || "").trim();
       if (!name || !r.pfctSn) continue;
-      // 바닥재·표면재는 놀이기구가 아니라 제외
-      if (/표면재|바닥재|매트|포설/.test(name)) continue;
+      // 바닥재·표면재(모래·고무 …)도 남긴다: 앱이 기구와 바닥 종류로 나눠 보여 준다(src/lib/rides.ts)
       const s = map.get(String(r.pfctSn)) ?? new Set<string>();
       s.add(name);
       map.set(String(r.pfctSn), s);
@@ -88,7 +87,7 @@ export async function fetchRides(opts: { maxAgeHours?: number } = {}): Promise<R
     await sleep(60);
   }
   const out: Record<string, string[]> = {};
-  for (const [k, v] of map) out[k] = [...v].slice(0, 12);
+  for (const [k, v] of map) out[k] = [...v].slice(0, 16);
   fs.writeFileSync(file, JSON.stringify(out));
   if (fs.existsSync(partial)) fs.unlinkSync(partial);
   console.log(`[rides] cached ${map.size} facilities`);

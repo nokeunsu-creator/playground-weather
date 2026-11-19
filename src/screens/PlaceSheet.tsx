@@ -1,6 +1,7 @@
 import type { Place } from "../lib/types";
 import { fmtDistance } from "../lib/geo";
 import { KIND_ICON, KIND_LABEL, mapLinks, openExternal, rideList, Sheet } from "../components/common";
+import { floorList } from "../lib/rides";
 import { Icon } from "../components/Icon";
 
 interface Props {
@@ -32,10 +33,15 @@ export function PlaceSheet({ place: p, km, fav, onFav, onMap, onClose }: Props) 
     if (p.pub != null) rows.push(["구분", p.pub ? "공공" : "민간"]);
     const rides = rideList(p);
     if (rides.length) rows.push(["놀이기구", rides.join(", ")]);
+    const floors = floorList(p);
+    if (floors.length) rows.push(["바닥", floors.join(", ")]);
     rows.push(["설치일", p.installed ?? "–"]);
     if (p.inspectOk != null) rows.push(["안전검사", p.inspectOk ? "완료" : "확인 필요"]);
   } else if (p.kind === "park") {
     rows.push(["구분", p.parkType ?? "–"], ["시설", p.facilities?.join(", ") || "–"], ["면적", p.area ? `${Math.round(p.area).toLocaleString()}㎡` : "–"]);
+  } else if (p.kind === "nursing") {
+    rows.push(["위치", p.spot ?? "–"], ["이용대상", p.target ?? "–"]);
+    if (p.father != null) rows.push(["아빠 이용", p.father ? "가능" : "어려움"]);
   } else {
     rows.push(["개방시간", p.open ?? "–"], ["기저귀교환대", p.diaper ?? "없음 / 정보없음"], ["어린이변기", p.facilities?.includes("어린이변기") ? "있음" : "없음 / 정보없음"]);
   }

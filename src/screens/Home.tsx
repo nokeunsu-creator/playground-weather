@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { DataIndex, Place, SggInfo, WxSnapshot } from "../lib/types";
 import type { Settings } from "../lib/store";
 import type { Loc } from "../lib/location";
-import { bestWindow, inputFromHour, inputFromNow, judge, pm10Grade, pm25Grade, PM_LABEL, uvLabel } from "../lib/judge";
+import { dayPlan, inputFromHour, inputFromNow, judge, pm10Grade, pm25Grade, PM_LABEL, uvLabel } from "../lib/judge";
+import { BestTime } from "../components/BestTime";
 import { fmtAgo, localIsoHour, nearbyPlaces, type NearbyPlace } from "../lib/data";
 import { isPublicSite, PlaceRow, skyIcon } from "../components/common";
 import { Icon } from "../components/Icon";
@@ -40,7 +41,12 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wx, settings.child, nowKey]);
 
-  const best = useMemo(() => (wx ? bestWindow(wx, settings.child, today) : undefined), [wx, settings.child, today]);
+  const tomorrowKey = localIsoHour(new Date(now.getTime() + 86400000)).slice(0, 10);
+  const plans = useMemo(
+    () => (wx ? { today: dayPlan(wx, settings.child, today, nowKey), tomorrow: dayPlan(wx, settings.child, tomorrowKey) } : undefined),
+    [wx, settings.child, today, tomorrowKey, nowKey],
+  );
+  const best = plans?.today.best;
 
   const hours = useMemo(() => {
     if (!wx) return [];
@@ -147,6 +153,8 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
               </div>
             )}
           </section>
+
+          {plans && <BestTime today={plans.today} tomorrow={plans.tomorrow} />}
 
           <section className="card">
             <h2>공기와 햇빛</h2>

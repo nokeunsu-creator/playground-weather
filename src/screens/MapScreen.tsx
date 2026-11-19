@@ -6,7 +6,8 @@ import type { Settings } from "../lib/store";
 import type { Loc } from "../lib/location";
 import { loadPlaces, nearestSggs } from "../lib/data";
 import { haversineKm } from "../lib/geo";
-import { isPublicSite, KIND_ICON } from "../components/common";
+import { isPublicSite, KIND_ICON, KIND_LABEL, Sheet } from "../components/common";
+import { FLOORS, matchesRides, RIDE_GROUPS, rideKeys } from "../lib/rides";
 import { Icon, iconSvg } from "../components/Icon";
 
 export interface MapFocus {
@@ -32,6 +33,10 @@ interface Filters {
   indoor: boolean;
   water: boolean;
   diaper: boolean;
+  /** 모두 갖춘 놀이터만(RIDE_GROUPS key) */
+  rides: string[];
+  /** FLOORS key */
+  floor?: string;
 }
 
 const VWORLD_KEY = import.meta.env.VITE_VWORLD_KEY as string | undefined;
@@ -65,8 +70,11 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
   const meRef = useRef<L.Marker | undefined>(undefined);
   const loaded = useRef(new Map<string, Place[]>());
   const [places, setPlaces] = useState<Place[]>([]);
-  const [filters, setFilters] = useState<Filters>({ kinds: { playground: true, park: true, toilet: true }, publicOnly: true, indoor: false, water: false, diaper: false });
+  const [filters, setFilters] = useState<Filters>({ kinds: { playground: true, park: true, toilet: true, nursing: true }, publicOnly: true, indoor: false, water: false, diaper: false, rides: [] });
   const [loading, setLoading] = useState(false);
+  const [rideSheet, setRideSheet] = useState(false);
+  const hasNursing = useMemo(() => index.sgg.some((s) => (s.counts.nursing ?? 0) > 0), [index]);
+  const kinds: PlaceKind[] = hasNursing ? ["playground", "park", "toilet", "nursing"] : ["playground", "park", "toilet"];
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
@@ -134,6 +142,20 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
     if (focus && mapRef.current) mapRef.current.setView([focus.lat, focus.lng], focus.zoom ?? 17);
   }, [focus]);
 
+  /** 기구 조건을 빼고 나머지 필터를 통과한 놀이터(기구 시트의 건수용) */
+  const basePlaygrounds = useMemo(
+    () =>
+      places.filter(
+        (p) =>
+          p.kind === "playground" &&
+          !(filters.publicOnly && !p.indoor && !isPublicSite(p.site ?? "")) &&
+          !(filters.indoor && !p.indoor) &&
+          !(filters.water && !p.water),
+      ),
+    [places, filters.publicOnly, filters.indoor, filters.water],
+  );
+  const rideActive = filters.rides.length > 0 || !!filters.floor;
+
   const visible = useMemo(() => {
     const f = filters;
     return places.filter((p) => {
@@ -142,8 +164,9 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
         if (f.publicOnly && !p.indoor && !isPublicSite(p.site ?? "")) return false;
         if (f.indoor && !p.indoor) return false;
         if (f.water && !p.water) return false;
-      } else if (f.indoor || f.water) return false;
-      if (f.diaper && !(p.kind === "toilet" && p.diaper)) return false;
+        if (!matchesRides(p, f.rides, f.floor)) return false;
+      } else if (f.indoor || f.water || f.rides.length || f.floor) return false;
+      if (f.diaper && !((p.kind === "toilet" && p.diaper) || p.kind === "nursing")) return false;
       return true;
     });
   }, [places, filters]);
@@ -162,7 +185,7 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
   }, [visible, onOpenDetail, loc]);
 
   const counts = useMemo(() => {
-    const c: Record<PlaceKind, number> = { playground: 0, park: 0, toilet: 0 };
+    const c: Record<PlaceKind, number> = { playground: 0, park: 0, toilet: 0, nursing: 0 };
     for (const p of visible) c[p.kind]++;
     return c;
   }, [visible]);
@@ -174,11 +197,14 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
       <div className="map-wrap">
         <div id="leaflet-map" />
         <div className="map-top">
-          {(["playground", "park", "toilet"] as PlaceKind[]).map((k) => (
+          {kinds.map((k) => (
             <button key={k} className={`chip ${filters.kinds[k] ? "on" : ""}`} onClick={() => toggleKind(k)}>
-              <Icon name={KIND_ICON[k]} size={15} /> {k === "playground" ? "놀이터" : k === "park" ? "공원" : "화장실"}
+              <Icon name={KIND_ICON[k]} size={15} /> {KIND_LABEL[k]}
             </button>
           ))}
+          <button className={`chip ${rideActive ? "on" : ""}`} onClick={() => setRideSheet(true)}>
+            <Icon name="filter" size={15} /> 기구{rideActive ? ` ${filters.rides.length + (filters.floor ? 1 : 0)}` : ""}
+          </button>
           <button className={`chip ${filters.publicOnly ? "on" : ""}`} onClick={() => setFilters((f) => ({ ...f, publicOnly: !f.publicOnly }))}>
             공공만
           </button>
@@ -189,7 +215,7 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
             물놀이
           </button>
           <button className={`chip ${filters.diaper ? "on" : ""}`} onClick={() => setFilters((f) => ({ ...f, diaper: !f.diaper }))}>
-            기저귀교환대
+            기저귀·수유실
           </button>
         </div>
         <button
@@ -203,9 +229,83 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
           <Icon name="location" size={22} />
         </button>
         <div className="map-hint">
-          {loading ? "불러오는 중…" : `놀이터 ${counts.playground} · 공원 ${counts.park} · 화장실 ${counts.toilet}`}
+          {loading
+            ? "불러오는 중…"
+            : `놀이터 ${counts.playground} · 공원 ${counts.park} · 화장실 ${counts.toilet}${counts.nursing ? ` · 수유실 ${counts.nursing}` : ""}`}
         </div>
       </div>
+      {rideSheet && (
+        <RideSheet
+          playgrounds={basePlaygrounds}
+          rides={filters.rides}
+          floor={filters.floor}
+          matched={counts.playground}
+          onChange={(rides, floor) => setFilters((f) => ({ ...f, rides, floor }))}
+          onClose={() => setRideSheet(false)}
+        />
+      )}
     </div>
+  );
+}
+
+function RideSheet({
+  playgrounds,
+  rides,
+  floor,
+  matched,
+  onChange,
+  onClose,
+}: {
+  playgrounds: Place[];
+  rides: string[];
+  floor?: string;
+  matched: number;
+  onChange: (rides: string[], floor?: string) => void;
+  onClose: () => void;
+}) {
+  // 지금 불러온 지역에서 기구별 놀이터 수
+  const count = useMemo(() => {
+    const c = new Map<string, number>();
+    for (const p of playgrounds) for (const k of rideKeys(p)) c.set(k, (c.get(k) ?? 0) + 1);
+    return c;
+  }, [playgrounds]);
+  const toggle = (k: string) => onChange(rides.includes(k) ? rides.filter((x) => x !== k) : [...rides, k], floor);
+  return (
+    <Sheet onClose={onClose}>
+      <div className="hd">
+        <div style={{ flex: 1 }}>
+          <h2>놀이기구로 찾기</h2>
+          <div className="sub">고른 기구를 모두 갖춘 놀이터만 보여요. 숫자는 지금 지도 주변 놀이터 수예요.</div>
+        </div>
+      </div>
+      <div className="ride-sec">기구</div>
+      <div className="chips">
+        {RIDE_GROUPS.map((g) => {
+          const n = count.get(g.key) ?? 0;
+          return (
+            <button key={g.key} className={`chip ${rides.includes(g.key) ? "on" : ""}`} disabled={!n && !rides.includes(g.key)} onClick={() => toggle(g.key)}>
+              {g.label} <small>{n}</small>
+            </button>
+          );
+        })}
+      </div>
+      <div className="ride-sec">바닥</div>
+      <div className="chips">
+        {FLOORS.map((g) => (
+          <button key={g.key} className={`chip ${floor === g.key ? "on" : ""}`} onClick={() => onChange(rides, floor === g.key ? undefined : g.key)}>
+            {g.label} <small>{count.get(g.key) ?? 0}</small>
+          </button>
+        ))}
+      </div>
+      <p className="sub" style={{ marginTop: 12 }}>미끄럼틀은 대부분 조합놀이대에 붙어 있어 조합놀이대도 함께 찾아요. 기구 정보는 행정안전부 등록 자료 기준이에요.</p>
+      <div className="btnrow">
+        <button className="btn" onClick={() => onChange([], undefined)}>
+          초기화
+        </button>
+        <button className="btn primary" onClick={onClose}>
+          놀이터 {matched}곳 보기
+        </button>
+      </div>
+    </Sheet>
   );
 }

@@ -1,9 +1,9 @@
 /** 공유 타입: 앱(src)과 파이프라인(pipeline)이 함께 사용한다. */
 
-export type PlaceKind = "playground" | "park" | "toilet";
+export type PlaceKind = "playground" | "park" | "toilet" | "nursing";
 
 export interface Place {
-  /** "pg:556961" | "pk:…" | "wc:…" */
+  /** "pg:556961" | "pk:…" | "wc:…" | "ns:…" */
   id: string;
   kind: PlaceKind;
   name: string;
@@ -43,6 +43,13 @@ export interface Place {
   /** 기저귀교환대 위치 요약(남/여/장애인) */
   diaper?: string;
   tel?: string;
+  // ---- 수유실 ----
+  /** 건물 안 위치(1층 어린이자료실 내 …) */
+  spot?: string;
+  /** 이용대상(외부인, 임산부 및 영유아 …) */
+  target?: string;
+  /** 아빠 이용 가능 */
+  father?: boolean;
 }
 
 export interface SggInfo {
@@ -61,7 +68,8 @@ export interface SggInfo {
   airSido: string;
   /** 생활기상지수 areaNo(10자리) */
   areaNo: string;
-  counts: Record<PlaceKind, number>;
+  /** 예전 index.json 에는 nursing 이 없을 수 있다 */
+  counts: Partial<Record<PlaceKind, number>> & Record<"playground" | "park" | "toilet", number>;
 }
 
 export interface DataIndex {
