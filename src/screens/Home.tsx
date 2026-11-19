@@ -3,7 +3,9 @@ import type { DataIndex, Place, SggInfo, WxSnapshot } from "../lib/types";
 import type { Settings } from "../lib/store";
 import type { Loc } from "../lib/location";
 import { dayPlan, inputFromHour, inputFromNow, judge, pm10Grade, pm25Grade, PM_LABEL, uvLabel } from "../lib/judge";
-import { BestTime } from "../components/BestTime";
+import { BestTime, summary } from "../components/BestTime";
+import { ShareSheet } from "../components/ShareSheet";
+import type { CardData } from "../lib/shareCard";
 import { fmtAgo, localIsoHour, nearbyPlaces, type NearbyPlace } from "../lib/data";
 import { isPublicSite, PlaceRow, skyIcon } from "../components/common";
 import { venueStatus } from "../lib/venue";
@@ -31,6 +33,7 @@ const AGE = { infant: "0~2세", toddler: "3~6세", kid: "7세 이상" } as const
 export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locating, onOpenDetail, onChangeRegion, onRefresh, onOpenMap }: Props) {
   const [pick, setPick] = useState(false);
   const [nearby, setNearby] = useState<NearbyPlace[]>();
+  const [shareData, setShareData] = useState<CardData>();
   const now = new Date();
   const nowKey = localIsoHour(now);
   const today = nowKey.slice(0, 10);
@@ -164,6 +167,33 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
                 ))}
               </div>
             )}
+            <div className="judge-actions">
+              <button
+                className="btn sm ghost"
+                onClick={() => {
+                  if (!sgg) return;
+                  const uvGrade = uvNow == null ? undefined : uvNow < 3 ? 0 : uvNow < 6 ? 1 : uvNow < 8 ? 2 : 3;
+                  setShareData({
+                    region: `${sgg.sido} ${sgg.name}`,
+                    when: now.toLocaleString("ko-KR", { month: "long", day: "numeric", weekday: "long", hour: "numeric" }),
+                    level: j.level,
+                    headline: j.headline,
+                    score: j.score,
+                    tiles: [
+                      { label: "기온", value: `${Math.round(wx.now.temp)}°`, sub: `체감 ${Math.round(wx.now.feels)}°` },
+                      { label: "미세먼지", value: wx.now.pm10 != null ? String(wx.now.pm10) : "–", sub: g10 != null ? PM_LABEL[g10] : "정보없음", grade: g10 },
+                      { label: "초미세먼지", value: wx.now.pm25 != null ? String(wx.now.pm25) : "–", sub: g25 != null ? PM_LABEL[g25] : "정보없음", grade: g25 },
+                      { label: "자외선", value: uvNow != null ? String(uvNow) : "–", sub: uvNow != null ? uvLabel(uvNow) : "정보없음", grade: uvGrade },
+                    ],
+                    best: plans ? summary(plans.today, plans.tomorrow).text : undefined,
+                    outfit: j.outfit,
+                    basis: `${AGE[settings.child.age]} 기준${settings.child.sensitive ? " · 민감군" : ""}`,
+                  });
+                }}
+              >
+                <Icon name="share" size={16} /> 오늘 판정 공유
+              </button>
+            </div>
           </section>
 
           {plans && <BestTime today={plans.today} tomorrow={plans.tomorrow} />}
@@ -284,6 +314,7 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
         {index && ` 장소 데이터 ${index.builtAt.slice(0, 10)}.`}
       </p>
 
+      {shareData && <ShareSheet data={shareData} onClose={() => setShareData(undefined)} />}
       {pick && index && <RegionPicker index={index} value={sgg?.code} onPick={onChangeRegion} onClose={() => setPick(false)} />}
     </div>
   );
