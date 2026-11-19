@@ -3,7 +3,7 @@ import type { DataIndex, SggInfo, WxSnapshot } from "../lib/types";
 import { updateSettings, type Settings } from "../lib/store";
 import { Seg, Switch } from "../components/common";
 import { Icon } from "../components/Icon";
-import { MAX_CHILDREN } from "../lib/children";
+import { MAX_CHILDREN, ORDINAL } from "../lib/children";
 import type { ChildProfile } from "../lib/types";
 import { RegionPicker } from "../components/RegionPicker";
 import { DATA_BASE } from "../lib/data";
@@ -37,14 +37,7 @@ export function SettingsScreen({ settings: s, index, wx, sgg, onUseHere, onChang
           return (
             <div className="kid" key={i}>
               <div className="kid-hd">
-                <input
-                  className="kid-name"
-                  value={c.name ?? ""}
-                  placeholder={`${i + 1}번째 아이 이름(선택)`}
-                  maxLength={8}
-                  aria-label={`${i + 1}번째 아이 이름`}
-                  onChange={(e) => setKid({ name: e.target.value })}
-                />
+                <b className="kid-label">{s.children.length > 1 ? `${ORDINAL[i]} 아이` : "우리 아이"}</b>
                 {s.children.length > 1 && (
                   <button
                     className="btn sm ghost"

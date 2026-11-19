@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DataIndex, Place, SggInfo, WxSnapshot } from "./lib/types";
-import { loadIndex, loadPlaces, loadWx, nearestSgg } from "./lib/data";
+import type { DataIndex, MudflatFile, MudflatSpot, Place, SggInfo, WxSnapshot } from "./lib/types";
+import { loadIndex, loadMudflat, loadPlaces, loadWx, localIsoHour, nearestSgg } from "./lib/data";
 import { getCurrentLocation, type Loc } from "./lib/location";
 import { DEFAULT_SETTINGS, loadSettings, subscribe, toggleFav, updateSettings, type Settings } from "./lib/store";
 import { initAds, maybeShowInterstitial } from "./lib/ads";
@@ -11,10 +11,12 @@ import { PlaceSheet } from "./screens/PlaceSheet";
 import { Favorites } from "./screens/Favorites";
 import { SettingsScreen } from "./screens/Settings";
 import { Onboarding } from "./screens/Onboarding";
+import { MudflatScreen } from "./screens/Mudflat";
+import { MudflatSheet } from "./components/MudflatSheet";
 import { haversineKm } from "./lib/geo";
 import { Icon, type IconName } from "./components/Icon";
 
-type Tab = "home" | "map" | "fav" | "settings";
+type Tab = "home" | "map" | "mud" | "fav" | "settings";
 
 export function App() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -29,6 +31,8 @@ export function App() {
   const [focus, setFocus] = useState<MapFocus>();
   const [detail, setDetail] = useState<{ place: Place; km?: number }>();
   const [locating, setLocating] = useState(false);
+  const [mudflat, setMudflat] = useState<MudflatFile>();
+  const [mudDetail, setMudDetail] = useState<{ spot: MudflatSpot; date: string; km?: number }>();
   const notifKey = useRef("");
 
   const applyLocation = useCallback(
@@ -85,6 +89,19 @@ export function App() {
       un();
     };
   }, [locate]);
+
+  // 갯벌·물때: 데이터가 있을 때만 탭을 보인다
+  useEffect(() => {
+    let alive = true;
+    void loadMudflat().then((m) => alive && setMudflat(m));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const openMud = useCallback((spot: MudflatSpot, date?: string, km?: number) => {
+    const d = date ?? localIsoHour(new Date()).slice(0, 10);
+    setMudDetail({ spot, date: d, km: km ?? undefined });
+  }, []);
 
   // 첫 위치 확인: 장소 목록 로딩과 온보딩 완료 중 늦게 끝나는 쪽에서 한 번 실행한다.
   // (예전에는 목록이 오기 전에 "시작하기"를 누르면 위치 확인이 아예 안 돼 홈이 계속 로딩 상태였다)
@@ -187,8 +204,19 @@ export function App() {
         />
       )}
       {tab === "map" && index && (
-        <MapScreen index={index} loc={loc} settings={settings} wx={wx} focus={focus} onOpenDetail={openDetail} onRelocate={refresh} />
+        <MapScreen
+          index={index}
+          loc={loc}
+          settings={settings}
+          wx={wx}
+          focus={focus}
+          mudflat={mudflat}
+          onOpenDetail={openDetail}
+          onOpenMudflat={(s, km) => openMud(s, undefined, km)}
+          onRelocate={refresh}
+        />
       )}
+      {tab === "mud" && mudflat && <MudflatScreen data={mudflat} loc={loc} onOpen={(s, d, km) => openMud(s, d, km)} />}
       {tab === "fav" && <Favorites settings={settings} loc={loc} onOpen={openFav} />}
       {tab === "settings" && (
         <SettingsScreen settings={settings} index={index} wx={wx} sgg={sgg} onUseHere={refresh} onChangeRegion={changeRegion} />
@@ -198,16 +226,22 @@ export function App() {
           [
             ["home", "house", "오늘"],
             ["map", "map", "지도"],
+            ["mud", "wave", "갯벌"],
             ["fav", "star", "즐겨찾기"],
             ["settings", "gear", "설정"],
           ] as [Tab, IconName, string][]
-        ).map(([t, ico, label]) => (
+        )
+          .filter(([t]) => t !== "mud" || mudflat)
+          .map(([t, ico, label]) => (
           <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
             <Icon name={tab === t && ico === "star" ? "starFill" : ico} size={24} fill={tab === t && ico === "house"} />
             {label}
           </button>
         ))}
       </nav>
+      {mudDetail && mudflat && (
+        <MudflatSheet spot={mudDetail.spot} data={mudflat} date={mudDetail.date} km={mudDetail.km} child={settings.child} onClose={() => setMudDetail(undefined)} />
+      )}
       {detail && (
         <PlaceSheet
           place={detail.place}

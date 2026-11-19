@@ -17,7 +17,8 @@
     "pipeline:crawl": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/sources/cpf-crawl.ts",
     "pipeline:geocode": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/geocode.ts",
     "pipeline:weather": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/fetch-weather.ts",
-    "pipeline:weather:mock": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/fetch-weather.ts --mock"
+    "pipeline:weather:mock": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/fetch-weather.ts --mock",
+    "pipeline:tide": "node --env-file-if-exists=.env node_modules/tsx/dist/cli.mjs pipeline/fetch-tide.ts"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.3.0",

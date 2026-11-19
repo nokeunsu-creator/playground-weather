@@ -4,7 +4,7 @@
  * - places/{sgg}.json: Cache Storage(오프라인), 메모리
  * - wx/{sgg}.json: 항상 네트워크 우선, 실패 시 마지막 성공값
  */
-import type { DataIndex, Place, PlacesFile, SggInfo, WxSnapshot } from "./types";
+import type { DataIndex, Place, PlacesFile, SggInfo, WxSnapshot, MudflatFile } from "./types";
 import { haversineKm } from "./geo";
 
 export const DATA_BASE: string = (import.meta.env.VITE_DATA_BASE as string | undefined)?.replace(/\/$/, "") || "/data";
@@ -162,4 +162,14 @@ export function fmtAgo(iso: string): string {
   const h = Math.round(m / 60);
   if (h < 24) return `${h}시간 전`;
   return `${Math.round(h / 24)}일 전`;
+}
+
+let mudMem: Promise<MudflatFile | undefined> | undefined;
+/** 갯벌·물때(data/mudflat.json). 없거나 비어 있으면 undefined → 갯벌 탭을 숨긴다 */
+export function loadMudflat(): Promise<MudflatFile | undefined> {
+  mudMem ??= cachedFetch(`${DATA_BASE}/mudflat.json`, { maxAgeMs: 3 * 3600 * 1000 })
+    .then((r) => r.json() as Promise<MudflatFile>)
+    .then((f) => (f && Array.isArray(f.spots) && f.spots.length ? f : undefined))
+    .catch(() => undefined);
+  return mudMem;
 }

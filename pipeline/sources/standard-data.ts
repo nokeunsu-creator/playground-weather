@@ -13,6 +13,7 @@ export const STD_DATASETS = {
   toilets: { pk: "15012892", label: "전국공중화장실표준데이터" },
   libraries: { pk: "15013109", label: "전국도서관표준데이터" },
   museums: { pk: "15017323", label: "전국박물관미술관정보표준데이터" },
+  villages: { pk: "15013113", label: "전국농어촌체험휴양마을표준데이터" },
 } as const;
 
 export type StdName = keyof typeof STD_DATASETS;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet.markercluster";
-import type { DataIndex, Place, PlaceKind, WxSnapshot } from "../lib/types";
+import type { DataIndex, MudflatFile, MudflatSpot, Place, PlaceKind, WxSnapshot } from "../lib/types";
 import type { Settings } from "../lib/store";
 import type { Loc } from "../lib/location";
 import { loadPlaces, nearestSggs } from "../lib/data";
@@ -23,7 +23,9 @@ interface Props {
   settings: Settings;
   wx?: WxSnapshot;
   focus?: MapFocus;
+  mudflat?: MudflatFile;
   onOpenDetail: (p: Place, km?: number) => void;
+  onOpenMudflat?: (s: MudflatSpot, km?: number) => void;
   onRelocate: () => void;
 }
 
@@ -37,6 +39,8 @@ interface Filters {
   rides: string[];
   /** FLOORS key */
   floor?: string;
+  /** 갯벌 체험 장소 */
+  mudflat: boolean;
 }
 
 const VWORLD_KEY = import.meta.env.VITE_VWORLD_KEY as string | undefined;
@@ -64,13 +68,16 @@ function markerIcon(p: Place): L.DivIcon {
   });
 }
 
-export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props) {
+const MUD_ICON = L.divIcon({ className: "", html: `<div class="pw-marker mudflat">${iconSvg("shell", 15)}</div>`, iconSize: [30, 30], iconAnchor: [15, 30] });
+
+export function MapScreen({ index, loc, focus, mudflat, onOpenDetail, onOpenMudflat, onRelocate }: Props) {
   const mapRef = useRef<L.Map | undefined>(undefined);
   const clusterRef = useRef<L.MarkerClusterGroup | undefined>(undefined);
   const meRef = useRef<L.Marker | undefined>(undefined);
   const loaded = useRef(new Map<string, Place[]>());
   const [places, setPlaces] = useState<Place[]>([]);
-  const [filters, setFilters] = useState<Filters>({ kinds: { playground: true, park: true, toilet: true, nursing: true, venue: true }, publicOnly: true, indoor: false, water: false, diaper: false, rides: [] });
+  const [loadedSggs, setLoadedSggs] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<Filters>({ kinds: { playground: true, park: true, toilet: true, nursing: true, venue: true }, publicOnly: true, indoor: false, water: false, diaper: false, rides: [], mudflat: true });
   const [loading, setLoading] = useState(false);
   const [rideSheet, setRideSheet] = useState(false);
   const hasNursing = useMemo(() => index.sgg.some((s) => (s.counts.nursing ?? 0) > 0), [index]);
@@ -100,6 +107,7 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
         setLoading(false);
       }
       setPlaces(sggs.flatMap((s) => loaded.current.get(s.code) ?? []));
+      setLoadedSggs(new Set(sggs.map((s) => s.code)));
     },
     [index],
   );
@@ -176,18 +184,31 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
     });
   }, [places, filters]);
 
+  /** 지금 불러온 시군구 안의 갯벌 체험 장소(다른 필터가 켜져 있으면 숨김) */
+  const mudVisible = useMemo(() => {
+    const f = filters;
+    if (!mudflat || !f.mudflat || f.indoor || f.water || f.diaper || f.rides.length || f.floor) return [];
+    return mudflat.spots.filter((s) => s.sgg && loadedSggs.has(s.sgg));
+  }, [mudflat, filters, loadedSggs]);
+
   // 마커 갱신
   useEffect(() => {
     const cluster = clusterRef.current;
     if (!cluster) return;
     cluster.clearLayers();
+    const km = (lat: number, lng: number) => (loc ? haversineKm(loc.lat, loc.lng, lat, lng) : undefined);
     const markers = visible.map((p) => {
       const m = L.marker([p.lat, p.lng], { icon: markerIcon(p), title: p.name });
-      m.on("click", () => onOpenDetail(p, loc ? haversineKm(loc.lat, loc.lng, p.lat, p.lng) : undefined));
+      m.on("click", () => onOpenDetail(p, km(p.lat, p.lng)));
       return m;
     });
+    for (const s of mudVisible) {
+      const m = L.marker([s.lat, s.lng], { icon: MUD_ICON, title: s.name });
+      m.on("click", () => onOpenMudflat?.(s, km(s.lat, s.lng)));
+      markers.push(m);
+    }
     cluster.addLayers(markers);
-  }, [visible, onOpenDetail, loc]);
+  }, [visible, mudVisible, onOpenDetail, onOpenMudflat, loc]);
 
   const counts = useMemo(() => {
     const c: Record<PlaceKind, number> = { playground: 0, park: 0, toilet: 0, nursing: 0, venue: 0 };
@@ -207,6 +228,11 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
               <Icon name={KIND_ICON[k]} size={15} /> {KIND_LABEL[k]}
             </button>
           ))}
+          {mudflat && (
+            <button className={`chip ${filters.mudflat ? "on" : ""}`} onClick={() => setFilters((f) => ({ ...f, mudflat: !f.mudflat }))}>
+              <Icon name="shell" size={15} /> 갯벌
+            </button>
+          )}
           <button className={`chip ${rideActive ? "on" : ""}`} onClick={() => setRideSheet(true)}>
             <Icon name="filter" size={15} /> 기구{rideActive ? ` ${filters.rides.length + (filters.floor ? 1 : 0)}` : ""}
           </button>
@@ -236,7 +262,7 @@ export function MapScreen({ index, loc, focus, onOpenDetail, onRelocate }: Props
         <div className="map-hint">
           {loading
             ? "불러오는 중…"
-            : `놀이터 ${counts.playground} · 공원 ${counts.park} · 화장실 ${counts.toilet}${counts.venue ? ` · 도서관·박물관 ${counts.venue}` : ""}${counts.nursing ? ` · 수유실 ${counts.nursing}` : ""}`}
+            : `놀이터 ${counts.playground} · 공원 ${counts.park} · 화장실 ${counts.toilet}${counts.venue ? ` · 도서관·박물관 ${counts.venue}` : ""}${counts.nursing ? ` · 수유실 ${counts.nursing}` : ""}${mudVisible.length ? ` · 갯벌 ${mudVisible.length}` : ""}`}
         </div>
       </div>
       {rideSheet && (

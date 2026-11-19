@@ -34,7 +34,11 @@ export type IconName =
   | "bottle"
   | "filter"
   | "book"
-  | "museum";
+  | "museum"
+  | "wave"
+  | "shell"
+  | "phone"
+  | "link";
 
 const P: Record<IconName, string> = {
   house: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
@@ -73,6 +77,10 @@ const P: Record<IconName, string> = {
   filter: "M4 6h16M7 12h10M10 18h4",
   book: "M4 5a2 2 0 0 1 2-2h5v17H6a2 2 0 0 0-2 2zM20 5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2zM4 5v17M20 5v17",
   museum: "M3 9l9-6 9 6M5 9v9M9.5 9v9M14.5 9v9M19 9v9M3 21h18M3 18h18",
+  wave: "M2 9c2.5-2.5 5-2.5 7.5 0s5 2.5 7.5 0 3.5-2.5 5 0M2 15c2.5-2.5 5-2.5 7.5 0s5 2.5 7.5 0 3.5-2.5 5 0",
+  shell: "M12 20c-4.5 0-8-3.2-8-7.2A8 8 0 0 1 12 5a8 8 0 0 1 8 7.8c0 4-3.5 7.2-8 7.2zM12 20V7M8.2 19 9.6 8.2M15.8 19l-1.4-10.8M10 20.6h4",
+  phone: "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z",
+  link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
 };
 
 export const ICON_PATHS = P;

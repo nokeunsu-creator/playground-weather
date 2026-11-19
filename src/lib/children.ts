@@ -6,6 +6,7 @@ import { AGE_LABEL } from "./judge";
 import type { AgeGroup, ChildProfile } from "./types";
 
 export const MAX_CHILDREN = 4;
+export const ORDINAL = ["첫째", "둘째", "셋째", "넷째"];
 /** 엄격한 순서 */
 const STRICT: AgeGroup[] = ["infant", "toddler", "kid"];
 const DEFAULT_CHILD: ChildProfile = { age: "toddler", sensitive: false };
@@ -26,10 +27,7 @@ export function basisLabel(list: ChildProfile[]): string {
 /** 저장된 설정을 아이 목록 기준으로 맞춘다(예전 단일 child 설정도 이전) */
 export function normalizeChildren(s: { child?: ChildProfile; children?: ChildProfile[] }): { child: ChildProfile; children: ChildProfile[] } {
   const src = s.children?.length ? s.children : [s.child ?? DEFAULT_CHILD];
-  const children = src.slice(0, MAX_CHILDREN).map((c) => {
-    const age: AgeGroup = STRICT.includes(c.age) ? c.age : "toddler";
-    const name = (c.name ?? "").trim().slice(0, 8);
-    return name ? { age, sensitive: !!c.sensitive, name } : { age, sensitive: !!c.sensitive };
-  });
+  // 이름 같은 아동 식별 정보는 받지 않는다(개인정보 처리방침 5항). 나이대·민감군만 남긴다
+  const children = src.slice(0, MAX_CHILDREN).map((c) => ({ age: STRICT.includes(c.age) ? c.age : ("toddler" as AgeGroup), sensitive: !!c.sensitive }));
   return { children, child: effectiveChild(children) };
 }

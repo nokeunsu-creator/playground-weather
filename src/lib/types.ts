@@ -176,6 +176,68 @@ export interface ChildProfile {
   age: AgeGroup;
   /** 알레르기 비염/천식 등 민감군이면 true */
   sensitive: boolean;
-  /** 부르는 이름(선택, 기기에만 저장) */
-  name?: string;
+}
+
+// ---------------- 갯벌·물때 ----------------
+
+/** 고조·저조 하나. t = "YYYY-MM-DDTHH:MM"(한국 시각), h = 예측 조위(cm) */
+export interface TideEvent {
+  t: string;
+  h: number;
+  type: "high" | "low";
+}
+
+/** 국립해양조사원 조석 예보지점 */
+export interface TideStation {
+  code: string;
+  name: string;
+  lat: number;
+  lng: number;
+  events: TideEvent[];
+}
+
+/** 국립해양조사원 갯벌체험지수 하루치 */
+export interface MudflatFcst {
+  date: string;
+  /** 체험 가능 시작·종료 "HH:MM" */
+  start?: string;
+  end?: string;
+  /** 매우좋음 | 좋음 | 보통 | 나쁨 | 매우나쁨 */
+  index?: string;
+  score?: number;
+  weather?: string;
+  tmin?: number;
+  tmax?: number;
+  wmax?: number;
+}
+
+export interface MudflatSpot {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  /** khoa: 갯벌체험지수 장소, village: 농어촌체험휴양마을 */
+  src: "khoa" | "village";
+  addr?: string;
+  /** 가까운 시군구(날씨 판정용) */
+  sgg?: string;
+  tel?: string;
+  /** https 홈페이지 */
+  url?: string;
+  /** 갯벌 관련 체험 프로그램 */
+  programs?: string[];
+  /** 가장 가까운 조석 예보지점 코드와 거리 */
+  station?: string;
+  stationKm?: number;
+  fcst?: MudflatFcst[];
+}
+
+/** data/mudflat.json */
+export interface MudflatFile {
+  builtAt: string;
+  sources: Record<string, string>;
+  /** 수집 중 건너뛴 것(API 미신청 등) */
+  notes: string[];
+  stations: Record<string, TideStation>;
+  spots: MudflatSpot[];
 }

@@ -16,10 +16,10 @@ describe("아이 여러 명", () => {
       child: { age: "kid", sensitive: true },
     });
   });
-  it("이름 다듬기·최대 인원·잘못된 나이", () => {
+  it("최대 인원·잘못된 나이·이름 같은 다른 값은 버림", () => {
     const many = Array.from({ length: 6 }, () => ({ age: "kid" as const, sensitive: false }));
     expect(normalizeChildren({ children: many }).children).toHaveLength(MAX_CHILDREN);
-    const r = normalizeChildren({ children: [{ age: "baby" as never, sensitive: false, name: "  아주긴이름입니다요  " }] });
-    expect(r.children[0]).toEqual({ age: "toddler", sensitive: false, name: "아주긴이름입니다" });
+    const r = normalizeChildren({ children: [{ age: "baby" as never, sensitive: false, name: "홍길동" } as never] });
+    expect(r.children[0]).toEqual({ age: "toddler", sensitive: false });
   });
 });

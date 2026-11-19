@@ -1,0 +1,44 @@
+name: tide-data
+
+# 갯벌·물때 → gh-pages 브랜치의 mudflat.json
+# 갯벌체험지수(7일)·조석예보(고·저조)는 자주 바뀌지 않아 하루 두 번(04:40, 14:40 KST).
+# 국립해양조사원 API 두 개(15142489, 15156018)를 활용신청하지 않았으면 체험마을 목록만 낸다.
+on:
+  schedule:
+    - cron: "40 19 * * *"
+    - cron: "40 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: gh-pages 체크아웃(index.json·이전 mudflat.json 사용)
+        run: |
+          git fetch origin gh-pages
+          git worktree add pages gh-pages
+      - name: 갯벌·물때 수집
+        run: npm run pipeline:tide -- --out pages
+      - name: gh-pages 반영
+        run: |
+          cd pages
+          git config user.name "pipeline-bot"
+          git config user.email "pipeline-bot@users.noreply.github.com"
+          git add mudflat.json
+          git diff --cached --quiet || git commit -m "data: mudflat $(date -u +%FT%H:%MZ)"
+          git push origin gh-pages
