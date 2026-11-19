@@ -9,6 +9,7 @@ import type { CardData } from "../lib/shareCard";
 import { fmtAgo, localIsoHour, nearbyPlaces, type NearbyPlace } from "../lib/data";
 import { isPublicSite, PlaceRow, skyIcon } from "../components/common";
 import { venueStatus } from "../lib/venue";
+import { basisLabel } from "../lib/children";
 import { Icon } from "../components/Icon";
 import { RegionPicker } from "../components/RegionPicker";
 
@@ -28,7 +29,6 @@ interface Props {
 }
 
 const LEVEL_ICON = { good: "check", caution: "exclaim", bad: "xmark" } as const;
-const AGE = { infant: "0~2세", toddler: "3~6세", kid: "7세 이상" } as const;
 
 export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locating, onOpenDetail, onChangeRegion, onRefresh, onOpenMap }: Props) {
   const [pick, setPick] = useState(false);
@@ -134,7 +134,7 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
               <div style={{ minWidth: 0 }}>
                 <div className="headline">{j.headline}</div>
                 <div className="sub">
-                  {AGE[settings.child.age]} 기준{settings.child.sensitive && " · 민감군"}
+                  {basisLabel(settings.children)}
                   {wx.mock && <span className="mock">모의 데이터</span>}
                 </div>
               </div>
@@ -187,7 +187,7 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
                     ],
                     best: plans ? summary(plans.today, plans.tomorrow).text : undefined,
                     outfit: j.outfit,
-                    basis: `${AGE[settings.child.age]} 기준${settings.child.sensitive ? " · 민감군" : ""}`,
+                    basis: basisLabel(settings.children),
                   });
                 }}
               >

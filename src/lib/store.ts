@@ -1,6 +1,7 @@
 /** 기기 로컬 설정(서버 없음). Capacitor Preferences → 웹에서는 localStorage. */
 import { Preferences } from "@capacitor/preferences";
 import type { ChildProfile, Place } from "./types";
+import { normalizeChildren } from "./children";
 
 export interface FavPlace {
   id: string;
@@ -14,7 +15,10 @@ export interface FavPlace {
 }
 
 export interface Settings {
+  /** 판정에 쓰는 기준(아이 목록에서 계산: 가장 어린 나이 + 한 명이라도 민감군) */
   child: ChildProfile;
+  /** 등록한 아이들(1~4명) */
+  children: ChildProfile[];
   /** 집(기본) 시군구 코드 */
   homeSgg?: string;
   homeName?: string;
@@ -31,6 +35,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   child: { age: "toddler", sensitive: false },
+  children: [{ age: "toddler", sensitive: false }],
   notify: { enabled: false, hour: 7, minute: 30 },
   evening: { enabled: false, hour: 20, minute: 0 },
   favorites: [],
@@ -45,7 +50,8 @@ const listeners = new Set<(s: Settings) => void>();
 export async function loadSettings(): Promise<Settings> {
   if (cache) return cache;
   const { value } = await Preferences.get({ key: KEY });
-  cache = value ? { ...DEFAULT_SETTINGS, ...(JSON.parse(value) as Partial<Settings>) } : { ...DEFAULT_SETTINGS };
+  const saved = value ? (JSON.parse(value) as Partial<Settings>) : {};
+  cache = { ...DEFAULT_SETTINGS, ...saved, ...normalizeChildren(saved) };
   return cache;
 }
 
@@ -57,6 +63,9 @@ export async function updateSettings(patch: Partial<Settings> | ((s: Settings) =
   const cur = await loadSettings();
   const p = typeof patch === "function" ? patch(cur) : patch;
   cache = { ...cur, ...p };
+  // 아이 목록이 바뀌면 판정 기준(child)을 다시 계산. child 만 주면(온보딩) 그 아이 한 명으로 본다
+  if (p.children) cache = { ...cache, ...normalizeChildren({ children: p.children }) };
+  else if (p.child) cache = { ...cache, ...normalizeChildren({ children: [p.child] }) };
   await Preferences.set({ key: KEY, value: JSON.stringify(cache) });
   for (const l of listeners) l(cache);
   return cache;

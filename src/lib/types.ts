@@ -176,4 +176,6 @@ export interface ChildProfile {
   age: AgeGroup;
   /** 알레르기 비염/천식 등 민감군이면 true */
   sensitive: boolean;
+  /** 부르는 이름(선택, 기기에만 저장) */
+  name?: string;
 }

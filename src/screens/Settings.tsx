@@ -2,6 +2,9 @@ import { useState } from "react";
 import type { DataIndex, SggInfo, WxSnapshot } from "../lib/types";
 import { updateSettings, type Settings } from "../lib/store";
 import { Seg, Switch } from "../components/common";
+import { Icon } from "../components/Icon";
+import { MAX_CHILDREN } from "../lib/children";
+import type { ChildProfile } from "../lib/types";
 import { RegionPicker } from "../components/RegionPicker";
 import { DATA_BASE } from "../lib/data";
 
@@ -28,25 +31,66 @@ export function SettingsScreen({ settings: s, index, wx, sgg, onUseHere, onChang
 
       <section className="card">
         <h2>아이</h2>
-        <div className="field">
-          <label>나이</label>
-          <Seg
-            value={s.child.age}
-            onChange={(age) => void updateSettings({ child: { ...s.child, age } })}
-            options={[
-              { v: "infant", label: "0~2세" },
-              { v: "toddler", label: "3~6세" },
-              { v: "kid", label: "7세+" },
-            ]}
-          />
-        </div>
-        <div className="field">
-          <label>
-            민감군
-            <small>비염·천식·아토피 등</small>
-          </label>
-          <Switch on={s.child.sensitive} onChange={(sensitive) => void updateSettings({ child: { ...s.child, sensitive } })} />
-        </div>
+        {s.children.map((c, i) => {
+          const setKid = (patch: Partial<ChildProfile>) =>
+            void updateSettings((cur) => ({ children: cur.children.map((k, j) => (j === i ? { ...k, ...patch } : k)) }));
+          return (
+            <div className="kid" key={i}>
+              <div className="kid-hd">
+                <input
+                  className="kid-name"
+                  value={c.name ?? ""}
+                  placeholder={`${i + 1}번째 아이 이름(선택)`}
+                  maxLength={8}
+                  aria-label={`${i + 1}번째 아이 이름`}
+                  onChange={(e) => setKid({ name: e.target.value })}
+                />
+                {s.children.length > 1 && (
+                  <button
+                    className="btn sm ghost"
+                    onClick={() => void updateSettings((cur) => ({ children: cur.children.filter((_, j) => j !== i) }))}
+                  >
+                    삭제
+                  </button>
+                )}
+              </div>
+              <div className="field">
+                <label>나이</label>
+                <Seg
+                  value={c.age}
+                  onChange={(age) => setKid({ age })}
+                  options={[
+                    { v: "infant", label: "0~2세" },
+                    { v: "toddler", label: "3~6세" },
+                    { v: "kid", label: "7세+" },
+                  ]}
+                />
+              </div>
+              <div className="field">
+                <label>
+                  민감군
+                  <small>비염·천식·아토피 등</small>
+                </label>
+                <Switch on={c.sensitive} onChange={(sensitive) => setKid({ sensitive })} />
+              </div>
+            </div>
+          );
+        })}
+        {s.children.length < MAX_CHILDREN && (
+          <div className="btnrow">
+            <button
+              className="btn block"
+              onClick={() => void updateSettings((cur) => ({ children: [...cur.children, { age: "kid", sensitive: false }] }))}
+            >
+              <Icon name="child" size={18} /> 아이 추가
+            </button>
+          </div>
+        )}
+        {s.children.length > 1 && (
+          <p className="sub" style={{ marginTop: 10 }}>
+            여러 명이면 가장 어린 아이 나이로, 한 명이라도 민감군이면 민감군 기준으로 판정해요.
+          </p>
+        )}
       </section>
 
       <section className="card">
