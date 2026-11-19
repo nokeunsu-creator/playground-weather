@@ -44,10 +44,14 @@ interface Filters {
 }
 
 const VWORLD_KEY = import.meta.env.VITE_VWORLD_KEY as string | undefined;
+/** 6단계면 휴대폰 화면에 남한 전체가 들어온다. */
+const MIN_ZOOM = 6;
 
 function tileLayer(): L.TileLayer {
   if (VWORLD_KEY) {
+    // 브이월드 Base 타일은 6~19 단계만 있다(5 이하는 오류 XML 이 와서 빈 지도가 됨).
     return L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`, {
+      minZoom: MIN_ZOOM,
       maxZoom: 19,
       attribution: "© 국토교통부 브이월드",
     });
@@ -115,7 +119,7 @@ export function MapScreen({ index, loc, focus, mudflat, onOpenDetail, onOpenMudf
   // 지도 생성
   useEffect(() => {
     const start = focus ?? (loc ? { lat: loc.lat, lng: loc.lng, zoom: 15 } : { lat: 37.5665, lng: 126.978, zoom: 13 });
-    const map = L.map("leaflet-map", { zoomControl: false, attributionControl: true }).setView([start.lat, start.lng], start.zoom ?? 15);
+    const map = L.map("leaflet-map", { zoomControl: false, attributionControl: true, minZoom: MIN_ZOOM }).setView([start.lat, start.lng], start.zoom ?? 15);
     tileLayer().addTo(map);
     const cluster = L.markerClusterGroup({ maxClusterRadius: 48, showCoverageOnHover: false, disableClusteringAtZoom: 17, spiderfyOnMaxZoom: false });
     map.addLayer(cluster);

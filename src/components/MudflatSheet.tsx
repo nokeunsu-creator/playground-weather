@@ -78,7 +78,9 @@ export function MudflatSheet({ spot, data, date: initial, km, child, onClose }: 
           return (
             <button key={d} role="tab" aria-selected={d === date} className={`wk ${d === date ? "on" : ""}`} onClick={() => setDate(d)}>
               <span className="wk-d">{dayLabel(d, today)}</span>
-              <span className={`wk-l ${u.past ? "na" : (sd.level ?? (w ? "good" : "na"))}`}>{u.past ? "지남" : sd.level ? LEVEL_TEXT[sd.level] : w ? "가능" : "–"}</span>
+              <span className={`wk-l ${u.past ? "na" : (sd.level ?? (w ? "good" : "na"))}`}>
+                {u.past ? "지남" : sd.from === "closed" ? "불가" : sd.level ? LEVEL_TEXT[sd.level] : w ? "가능" : "–"}
+              </span>
               <span className="wk-t">{w ? w.start : ""}</span>
               {ranges[d]?.cls === "big" && <span className="wk-b">물 많이</span>}
             </button>
@@ -90,7 +92,12 @@ export function MudflatSheet({ spot, data, date: initial, km, child, onClose }: 
         <div>
           <dt>체험 시간</dt>
           <dd>
-            {up.past ? (
+            {day.from === "closed" ? (
+              <>
+                체험 불가
+                <small className="kv-note">국립해양조사원이 이날은 갯벌 체험이 어렵다고 예보했어요. 다른 날을 골라 보세요</small>
+              </>
+            ) : up.past ? (
               <>
                 {day.windows.map((w) => `${w.start} ~ ${w.end}`).join(", ")}
                 <small className="kv-note">오늘 체험 시간은 지났어요. 다른 날을 골라 보세요</small>

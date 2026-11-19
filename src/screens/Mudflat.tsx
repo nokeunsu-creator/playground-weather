@@ -24,6 +24,7 @@ export function spotLine(d: SpotDay, spot: MudflatSpot, today = d.date, now = "0
   const lows = d.events.filter((e) => e.type === "low").map((e) => e.t.slice(11, 16));
   const { windows, past } = upcoming(d, today, now);
   if (past) return "오늘 체험 시간은 지났어요";
+  if (d.from === "closed") return `${d.fcst?.index ?? "체험불가"} · 국립해양조사원 예보`;
   if (d.from === "index") {
     const w = windows[0];
     return `${d.fcst?.index ?? "체험"} · ${w.start}~${w.end}`;

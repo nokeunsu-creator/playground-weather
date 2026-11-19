@@ -32,9 +32,19 @@ interface BusanItem {
   confirm_date?: string;
 }
 
+/**
+ * 보호자가 쓸 수 있는 수유실인가. 이용대상(target)이 직원 전용이면 지도에 올리지 않는다.
+ * 실제 값(2026-11): 외부인 240, 외부인+직원 32, 직원+외부인 24, 외부/직원용 7, 직원용 4, 지원 1.
+ */
+export function isPublicNursing(target?: string | null): boolean {
+  const t = (target ?? "").replace(/\s/g, "");
+  return !(/직원/.test(t) && !/외부/.test(t));
+}
+
 export async function fetchBusanNursing(key = process.env.DATA_GO_KR_KEY): Promise<{ rows: NursingRow[]; note: string }> {
   if (!key) return { rows: [], note: "키 없음" };
   const rows: NursingRow[] = [];
+  let staffOnly = 0;
   let total = Infinity;
   for (let page = 1; (page - 1) * 100 < total && page <= 50; page++) {
     const url = `${BASE}?serviceKey=${encodeURIComponent(key)}&pageNo=${page}&numOfRows=100&resultType=json`;
@@ -55,6 +65,10 @@ export async function fetchBusanNursing(key = process.env.DATA_GO_KR_KEY): Promi
       const lat = Number(it.lat);
       const lng = Number(it.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng) || !it.sj) continue;
+      if (!isPublicNursing(it.target)) {
+        staffOnly++;
+        continue;
+      }
       rows.push({
         name: it.sj.trim(),
         addr: (it.address ?? "").trim(),
@@ -69,7 +83,7 @@ export async function fetchBusanNursing(key = process.env.DATA_GO_KR_KEY): Promi
     }
     if (!items.length) break;
   }
-  return { rows, note: `부산광역시 수유실 보유 시설 현황 ${rows.length}건` };
+  return { rows, note: `부산광역시 수유실 보유 시설 현황 ${rows.length}건(직원 전용 ${staffOnly}건 제외)` };
 }
 
 const isMain = process.argv[1] && /nursing\.ts$/.test(process.argv[1]);

@@ -72,8 +72,18 @@ describe("장소 하루 정리", () => {
   it("물때도 없으면 none", () => {
     expect(spotDay({ ...base, station: undefined }, {}, "2026-11-21").from).toBe("none");
   });
+  it("체험불가(00:00~00:00)면 물때로 다시 계산해 권하지 않는다", () => {
+    // 2026-11-20 실제 응답 모양: totalIndex 체험불가, 체험 시각 00:00~00:00
+    const fcst = [{ date: "2026-11-21", start: "00:00", end: "00:00", index: "체험불가", weather: "흐림", wmax: 13.9 }];
+    const d = spotDay({ ...base, src: "khoa", fcst }, { DT_0001: st }, "2026-11-21");
+    expect(d.from).toBe("closed");
+    expect(d.windows).toEqual([]);
+    expect(d.level).toBe("bad");
+    expect(d.events.length).toBeGreaterThan(0); // 물때 표는 그대로 보여 줄 수 있다
+  });
   it("지수 등급·날짜 라벨", () => {
     expect(indexLevel("매우나쁨")).toBe("bad");
+    expect(indexLevel("체험불가")).toBe("bad");
     expect(indexLevel("보통")).toBe("caution");
     expect(dayLabel("2026-11-21", "2026-11-20")).toBe("내일");
     expect(dayLabel("2026-11-22", "2026-11-20")).toBe("일 11/22");

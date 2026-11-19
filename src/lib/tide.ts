@@ -92,9 +92,15 @@ export function weekRanges(st: TideStation | undefined, dates: string[]): Record
   return out;
 }
 
+/**
+ * 국립해양조사원이 그날은 체험할 수 없다고 예보한 경우(겨울·강풍 등).
+ * 실제 응답은 totalIndex "체험불가" + 체험 시각 "00:00"~"00:00" 으로 온다(2026-11 확인).
+ */
+export const isClosedIndex = (index?: string): boolean => !!index && /불가/.test(index);
+
 export function indexLevel(index?: string): Level | undefined {
   if (!index) return undefined;
-  if (/나쁨/.test(index)) return "bad";
+  if (isClosedIndex(index) || /나쁨/.test(index)) return "bad";
   if (/보통/.test(index)) return "caution";
   if (/좋음/.test(index)) return "good";
   return undefined;
@@ -106,8 +112,8 @@ export interface SpotDay {
   fcst?: MudflatFcst;
   /** 체험 시간: 지수의 체험 가능 시각, 없으면 물때로 계산한 권장 시간 */
   windows: DigWindow[];
-  /** windows 출처 */
-  from: "index" | "tide" | "none";
+  /** windows 출처. closed = 체험지수가 "체험불가"(물때로 다시 계산해 권하지 않는다) */
+  from: "index" | "tide" | "closed" | "none";
   events: TideEvent[];
   sun?: { rise: string; set: string };
   level?: Level;
@@ -118,6 +124,9 @@ export function spotDay(spot: MudflatSpot, stations: Record<string, TideStation>
   const events = eventsOn(st, date);
   const sun = sunTimes(date, spot.lat, spot.lng);
   const fcst = spot.fcst?.find((f) => f.date === date);
+  if (fcst && isClosedIndex(fcst.index)) {
+    return { date, fcst, windows: [], from: "closed", events, sun, level: "bad" };
+  }
   if (fcst?.start && fcst.end && fcst.start < fcst.end) {
     const lowsIn = events.filter((e) => e.type === "low" && e.t.slice(11, 16) >= fcst.start! && e.t.slice(11, 16) <= fcst.end!);
     return {

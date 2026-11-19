@@ -104,6 +104,7 @@ async function main() {
 
   // ---- 1-b. 갯벌체험지수 포인트(7일) ----
   const days = kstDays(DAYS);
+  const todayIso = `${days[0].slice(0, 4)}-${days[0].slice(4, 6)}-${days[0].slice(6, 8)}`;
   if (!KEY) notes.push("DATA_GO_KR_KEY 없음: 갯벌체험지수·물때 건너뜀");
   if (KEY) {
     try {
@@ -125,27 +126,66 @@ async function main() {
     } catch (e) {
       if (e instanceof ApiNotRegistered) {
         notes.push("갯벌체험지수 API(15142489) 활용신청 필요");
-      } else notes.push(`갯벌체험지수 실패: ${(e as Error).message}`);
+      } else {
+        // 국립해양조사원 서버가 자주 시간 초과(SERVICETIMEOUT)된다. 이전 결과 중 오늘 이후 날짜는 살린다.
+        notes.push(`갯벌체험지수 실패: ${(e as Error).message}`);
+        let restored = 0;
+        for (const old of prev?.spots ?? []) {
+          if (old.src !== "khoa") continue;
+          const fcst = (old.fcst ?? []).filter((f) => f.date >= todayIso);
+          if (!fcst.length) continue;
+          const cur = spots.find((s) => s.id === old.id);
+          if (cur) Object.assign(cur, { src: "khoa", name: old.name, fcst });
+          else spots.push({ ...old, fcst, station: undefined, stationKm: undefined });
+          restored++;
+        }
+        if (restored) sources.mudflatIndex = `국립해양조사원 갯벌체험지수(이전 수집값) ${restored}곳`;
+      }
     }
   }
 
   // ---- 2. 물때 ----
-  const list = (readJson<{ stations: { code: string; name: string }[] }>(path.resolve("pipeline/data/tide-stations.json"))?.stations ?? []).map((s) => ({ ...s }));
+  // 예보지점 좌표는 tide-stations.json 에 넣어 두었다(없는 지점만 API 로 알아낸다).
+  const list = (readJson<{ stations: { code: string; name: string; lat?: number; lng?: number }[] }>(path.resolve("pipeline/data/tide-stations.json"))?.stations ?? []).map((s) => ({ ...s }));
   const coords = new Map<string, { lat: number; lng: number }>();
+  for (const s of list) if (Number.isFinite(s.lat) && Number.isFinite(s.lng)) coords.set(s.code, { lat: s.lat!, lng: s.lng! });
   for (const s of Object.values(prev?.stations ?? {})) if (Number.isFinite(s.lat)) coords.set(s.code, { lat: s.lat, lng: s.lng });
   const stations: Record<string, TideStation> = {};
   let calls = 0;
+  let failed = 0;
+  let reusedDays = 0;
+  // 연속으로 이만큼 실패하면 서버가 멈춘 것으로 보고 더 부르지 않는다(실패 한 건이 재시도 포함 2분 남짓 → 작업 시간 제한 보호)
+  const MAX_CONSECUTIVE_FAIL = 3;
+  let streak = 0;
+  /** 한 번 호출. 실패하면 undefined(활용신청 문제는 그대로 던짐) */
+  const tryDay = async (code: string, ymd: string) => {
+    if (streak >= MAX_CONSECUTIVE_FAIL) {
+      failed++;
+      return undefined;
+    }
+    try {
+      const r = await fetchTideDay(KEY!, code, ymd);
+      calls++;
+      streak = 0;
+      await sleep(60);
+      return r;
+    } catch (e) {
+      if (e instanceof ApiNotRegistered) throw e;
+      failed++;
+      streak++;
+      return undefined;
+    }
+  };
   if (KEY) {
     try {
       // 좌표 모르는 지점은 오늘 예보를 한 번 받아 좌표를 얻는다
       const todayCache = new Map<string, Awaited<ReturnType<typeof fetchTideDay>>>();
       for (const s of list) {
         if (coords.has(s.code)) continue;
-        const r = await fetchTideDay(KEY, s.code, days[0]);
-        calls++;
+        const r = await tryDay(s.code, days[0]);
+        if (!r) continue;
         todayCache.set(s.code, r);
         if (r.lat != null && r.lng != null) coords.set(s.code, { lat: r.lat, lng: r.lng });
-        await sleep(60);
       }
       // 장소마다 가까운 예보지점
       for (const sp of spots) {
@@ -169,19 +209,32 @@ async function main() {
         const c = coords.get(code)!;
         const events: TideStation["events"] = [];
         for (const [i, d] of days.entries()) {
-          const r = i === 0 && todayCache.has(code) ? todayCache.get(code)! : await fetchTideDay(KEY, code, d);
-          if (!(i === 0 && todayCache.has(code))) {
-            calls++;
-            await sleep(60);
+          const r = (i === 0 ? todayCache.get(code) : undefined) ?? (await tryDay(code, d));
+          if (r) {
+            events.push(...r.events);
+            continue;
           }
-          events.push(...r.events);
+          // 실패한 날은 이전 수집값으로 채운다
+          const iso = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+          const old = (prev?.stations?.[code]?.events ?? []).filter((ev) => ev.t.startsWith(iso));
+          if (old.length) reusedDays++;
+          events.push(...old);
         }
-        stations[code] = { code, name: meta?.name ?? code, lat: c.lat, lng: c.lng, events: events.sort((a, b) => a.t.localeCompare(b.t)) };
+        if (events.length) stations[code] = { code, name: meta?.name ?? code, lat: c.lat, lng: c.lng, events: events.sort((a, b) => a.t.localeCompare(b.t)) };
       }
-      sources.tide = `국립해양조사원 조석예보(고, 저조) 예보지점 ${used.length}곳, ${days[0]}부터 ${DAYS}일, 호출 ${calls}건`;
+      // 물때를 하나도 못 얻은 지점에 붙은 장소는 지점을 뗀다(앱이 빈 물때를 보여 주지 않도록)
+      for (const sp of spots) {
+        if (sp.station && !stations[sp.station]) {
+          delete sp.station;
+          delete sp.stationKm;
+        }
+      }
+      sources.tide = `국립해양조사원 조석예보(고, 저조) 예보지점 ${Object.keys(stations).length}곳, ${days[0]}부터 ${DAYS}일, 호출 ${calls}건`;
+      if (failed) notes.push(`물때 호출 실패 ${failed}건(이전 수집값으로 채운 날 ${reusedDays}개)`);
     } catch (e) {
       if (e instanceof ApiNotRegistered) notes.push("조석예보(고, 저조) API(15156018) 활용신청 필요");
       else notes.push(`물때 실패: ${(e as Error).message}`);
+      for (const k of Object.keys(stations)) delete stations[k];
       for (const sp of spots) {
         delete sp.station;
         delete sp.stationKm;

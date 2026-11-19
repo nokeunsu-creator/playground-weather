@@ -35,10 +35,17 @@ export function totalOf(j: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/**
+ * 국립해양조사원 쪽 서버가 느려 30초를 넘기거나 SERVICETIMEOUT(504)을 자주 낸다(2026-11 실측: 두 번 실패 후 15초 만에 응답).
+ * 그래서 60초까지 기다리고 4번까지 다시 시도한다.
+ */
+const TIMEOUT_MS = 60000;
+const ATTEMPTS = 4;
+
 async function getJson(url: string): Promise<unknown> {
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= ATTEMPTS; i++) {
     try {
-      const res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(30000) });
+      const res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
       const text = await res.text();
       if (text.includes("SERVICE_KEY_IS_NOT_REGISTERED")) throw new ApiNotRegistered("활용신청 안 됨(SERVICE_KEY_IS_NOT_REGISTERED)");
       if (text.includes("OpenAPI_ServiceResponse")) {
@@ -47,8 +54,8 @@ async function getJson(url: string): Promise<unknown> {
       }
       return JSON.parse(text);
     } catch (e) {
-      if (e instanceof ApiNotRegistered || i === 3) throw e;
-      await sleep(1200 * i);
+      if (e instanceof ApiNotRegistered || i === ATTEMPTS) throw e;
+      await sleep(2000 * i);
     }
   }
   throw new Error("unreachable");
