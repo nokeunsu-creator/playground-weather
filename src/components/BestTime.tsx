@@ -70,7 +70,7 @@ export function BestTime({ today, tomorrow }: { today: DayPlan; tomorrow: DayPla
       <div className="tl">
         <span className="tl-day" />
         <div className="tl-axis">
-          {SLOTS.filter((h) => h % 3 === 1).map((h) => (
+          {SLOTS.filter((h) => h % 3 === 1 && h < PLAY_END).map((h) => (
             <span key={h} style={{ left: `${((h - PLAY_START) / SLOTS.length) * 100}%` }}>
               {h}시
             </span>

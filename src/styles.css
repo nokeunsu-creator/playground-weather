@@ -1092,3 +1092,12 @@ select.sel {
 .chip:disabled {
   opacity: 0.35;
 }
+.tl-axis span {
+  white-space: nowrap;
+}
+@media (max-width: 359px) {
+  .topbar h1 {
+    font-size: 26px;
+    white-space: nowrap;
+  }
+}

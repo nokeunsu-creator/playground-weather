@@ -14,6 +14,7 @@ import type { CpfRow } from "./sources/cpf-crawl";
 import { fetchAllPfct, type RawItem } from "./sources/pfct-api";
 import { fetchRides } from "./sources/ride-api";
 import { fetchBusanNursing } from "./sources/nursing";
+import { fetchDiaperIndex, lookupDiaper, type DiaperIndex } from "./sources/restroom-info";
 import { loadGeoCache, lookupGeo } from "./geocode";
 import { matchSgg, matchSido, normalizeAddr, SGG_BY_CODE, sidoOfSgg } from "./sgg";
 import { haversineKm } from "../src/lib/geo";
@@ -123,6 +124,16 @@ async function main() {
   sources.parks = `전국도시공원정보표준데이터 ${parks.totalCount}건, 기준일 ${refDate}`;
 
   // ---- 화장실 ----
+  // 표준데이터의 기저귀교환대 항목은 전부 비어 있어 행안부 공중화장실정보(매일 갱신)에서 붙인다
+  let diaperIdx: DiaperIndex | undefined;
+  try {
+    diaperIdx = await fetchDiaperIndex();
+    console.log(`[places] 공중화장실정보 ${diaperIdx.rows}행, 기저귀교환대 ${diaperIdx.withDiaper}곳`);
+  } catch (e) {
+    console.warn(`[places] 공중화장실정보 실패(${(e as Error).message}) → 기저귀교환대 없이 진행`);
+  }
+  let diaperMatched = 0;
+  const clean = (v?: string | null) => (v && v !== "null" && v !== "-" && v !== "없음" ? v.trim() : "");
   refDate = "";
   for (const r of toilets.rows) {
     const lat = num(r.LATITUDE);
@@ -131,9 +142,12 @@ async function main() {
     const addr = normalizeAddr(r.RDNMADR || r.LNMADR || "");
     const sgg = matchSgg(addr)?.code ?? "";
     const kidsBowls = (num(r.MEN_CHILDREN_TOILET_BOWL_NUMBER) ?? 0) + (num(r.LADIES_CHILDREN_TOILET_BOWL_NUMBER) ?? 0) + (num(r.MEN_CHILDREN_URINAL_NUMBER) ?? 0);
-    const diaper = (r.DIPERS_EXCHG_POSI || "").trim();
+    const fromInfo = diaperIdx ? lookupDiaper(diaperIdx, [r.RDNMADR, r.LNMADR], r.TOILET_NM ?? "") : undefined;
+    const hasDiaper = fromInfo !== undefined || !!clean(r.DIPERS_EXCHG_POSI);
+    const diaper = fromInfo || clean(r.DIPERS_EXCHG_POSI) || (hasDiaper ? "있음" : "");
+    if (fromInfo !== undefined) diaperMatched++;
     const fac: string[] = [];
-    if (diaper && diaper !== "없음" && diaper !== "-") fac.push("기저귀교환대");
+    if (hasDiaper) fac.push("기저귀교환대");
     if (kidsBowls > 0) fac.push("어린이변기");
     if (r.UNISEX_TOILET_YN === "Y") fac.push("남녀공용");
     (sgg ? places : pending).push({
@@ -144,14 +158,15 @@ async function main() {
       lng: lng as number,
       addr,
       sgg,
-      open: r.OPEN_TIME || undefined,
-      diaper: diaper && diaper !== "없음" ? diaper : undefined,
+      open: clean(r.OPEN_TIME) || undefined,
+      diaper: diaper || undefined,
       facilities: fac.length ? fac : undefined,
-      tel: r.PHONE_NUMBER || undefined,
+      tel: clean(r.PHONE_NUMBER) || undefined,
     });
     if (r.REFERENCE_DATE > refDate) refDate = r.REFERENCE_DATE;
   }
   sources.toilets = `전국공중화장실표준데이터 ${toilets.totalCount}건, 기준일 ${refDate}`;
+  if (diaperIdx) sources.diaper = `행정안전부 공중화장실정보 기저귀교환대 ${diaperIdx.withDiaper}곳 중 ${diaperMatched}곳 연결, 기준일 ${diaperIdx.date ?? "-"}`;
 
   // ---- 놀이터: 1순위 행안부 전국어린이놀이시설정보 API(좌표·공공/민간·실내외 포함) ----
   const listFile = path.resolve("pipeline/.cache/cpf/list.jsonl");

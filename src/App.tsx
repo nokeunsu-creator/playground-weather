@@ -74,7 +74,6 @@ export function App() {
         const idx = await loadIndex();
         if (!alive) return;
         setIndex(idx);
-        if (s.onboarded) await locate(idx, s);
       } catch (e) {
         setIndexError(`장소 데이터를 불러오지 못했어요. 인터넷 연결을 확인해 주세요. (${(e as Error).message})`);
       }
@@ -86,6 +85,16 @@ export function App() {
       un();
     };
   }, [locate]);
+
+  // 첫 위치 확인: 장소 목록 로딩과 온보딩 완료 중 늦게 끝나는 쪽에서 한 번 실행한다.
+  // (예전에는 목록이 오기 전에 "시작하기"를 누르면 위치 확인이 아예 안 돼 홈이 계속 로딩 상태였다)
+  const located = useRef(false);
+  useEffect(() => {
+    if (!index || !settings.onboarded || located.current) return;
+    located.current = true;
+    void locate(index, settings);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, settings.onboarded, locate]);
 
   // 아침 알림 재예약(설정·날씨가 바뀔 때)
   useEffect(() => {
@@ -149,8 +158,7 @@ export function App() {
         index={index}
         onDone={async (child, homeSgg) => {
           const home = index?.sgg.find((x) => x.code === homeSgg);
-          const s = await updateSettings({ child, onboarded: true, homeSgg, homeName: home ? `${home.sido} ${home.name}` : undefined });
-          if (index) await locate(index, s);
+          await updateSettings({ child, onboarded: true, homeSgg, homeName: home ? `${home.sido} ${home.name}` : undefined });
         }}
       />
     );
