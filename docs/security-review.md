@@ -74,6 +74,7 @@
 | 5 | 하 | 원본 공중화장실정보에 미래 기준일(2026-12-11) 행 존재 | 오늘 이후 날짜는 기준일 계산에서 제외 |
 | 6 | 정보 | 패치 업데이트 3건(admob 8.4.2, geolocation 8.2.5, vitest 5.1.1) | 적용 후 전체 테스트 재통과 |
 | 7 | 출시 차단 | `.env` 의 VWORLD_KEY·VITE_VWORLD_KEY 가 비어 있어 지도가 OpenStreetMap 타일을 씀. OSM 타일 정책상 앱의 대량 사용 금지 | 사용자가 브이월드 키 발급 후 `.env` 에 넣고 재빌드 필요 |
+| 9 | 하 | 개발용 로컬 데이터(public/data, 519개 파일·35MB)가 앱 번들에 그대로 들어감. 앱은 원격 데이터만 읽어 쓸모없고 오래된 사본 | 원격 데이터 주소가 있으면 빌드에서 제외(`vite.config.ts`). AAB 14.6MB → 10.0MB, 프로덕션 빌드 E2E 재통과 |
 | 8 | 정보 | 개발 서버를 LAN(0.0.0.0:5180)에 열어 둠(폰 테스트용) | 테스트가 끝나면 종료 |
 
 다시 확인했고 문제 없음: data.go.kr 키는 git 전체 기록·빌드 산출물·로그 출력 어디에도 없음, 위험 DOM 싱크 없음, 외부 링크 noopener·encodeURIComponent, 신규 수집 모듈(부산 수유실 API·공중화장실정보)은 고정 공공 도메인만 요청하고 CSV/JSON 을 데이터로만 파싱, 워크플로는 schedule/workflow_dispatch 만 트리거(pull_request_target 없음), 데이터 호스트 HTTPS+HSTS, npm audit 0건, exported 컴포넌트는 런처뿐.
