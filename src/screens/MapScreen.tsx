@@ -92,8 +92,11 @@ export function MapScreen({ index, loc, focus, mudflat, onOpenDetail, onOpenMudf
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
+  // 지도를 움직이는 동안 요청이 겹치면 가장 나중 요청 결과만 쓴다(늦게 끝난 이전 지역이 덮어쓰지 않게)
+  const reqSeq = useRef(0);
   const loadAround = useCallback(
     async (lat: number, lng: number) => {
+      const seq = ++reqSeq.current;
       const sggs = nearestSggs(index, lat, lng, 4);
       const missing = sggs.filter((s) => !loaded.current.has(s.code));
       if (missing.length) {
@@ -108,8 +111,9 @@ export function MapScreen({ index, loc, focus, mudflat, onOpenDetail, onOpenMudf
             }
           }),
         );
-        setLoading(false);
       }
+      if (seq !== reqSeq.current) return;
+      setLoading(false);
       setPlaces(sggs.flatMap((s) => loaded.current.get(s.code) ?? []));
       setLoadedSggs(new Set(sggs.map((s) => s.code)));
     },
@@ -163,7 +167,7 @@ export function MapScreen({ index, loc, focus, mudflat, onOpenDetail, onOpenMudf
       places.filter(
         (p) =>
           p.kind === "playground" &&
-          !(filters.publicOnly && !p.indoor && !isPublicSite(p.site ?? "")) &&
+          !(filters.publicOnly && !isPublicSite(p.site ?? "")) &&
           !(filters.indoor && !p.indoor) &&
           !(filters.water && !p.water),
       ),
@@ -176,7 +180,8 @@ export function MapScreen({ index, loc, focus, mudflat, onOpenDetail, onOpenMudf
     return places.filter((p) => {
       if (!f.kinds[p.kind]) return false;
       if (p.kind === "playground") {
-        if (f.publicOnly && !p.indoor && !isPublicSite(p.site ?? "")) return false;
+        // 실내 놀이터도 어린이집·유치원·아파트 등 외부인이 못 쓰는 곳은 뺀다(키즈카페 같은 영업소는 통과)
+        if (f.publicOnly && !isPublicSite(p.site ?? "")) return false;
         if (f.indoor && !p.indoor) return false;
         if (f.water && !p.water) return false;
         if (!matchesRides(p, f.rides, f.floor)) return false;
@@ -195,7 +200,9 @@ export function MapScreen({ index, loc, focus, mudflat, onOpenDetail, onOpenMudf
     return mudflat.spots.filter((s) => s.sgg && loadedSggs.has(s.sgg));
   }, [mudflat, filters, loadedSggs]);
 
-  // 마커 갱신
+  // 마커 갱신. 클릭 콜백은 ref 로 읽어, 부모가 다시 그려져도 마커 수천 개를 다시 만들지 않는다
+  const handlers = useRef({ onOpenDetail, onOpenMudflat });
+  handlers.current = { onOpenDetail, onOpenMudflat };
   useEffect(() => {
     const cluster = clusterRef.current;
     if (!cluster) return;
@@ -203,16 +210,16 @@ export function MapScreen({ index, loc, focus, mudflat, onOpenDetail, onOpenMudf
     const km = (lat: number, lng: number) => (loc ? haversineKm(loc.lat, loc.lng, lat, lng) : undefined);
     const markers = visible.map((p) => {
       const m = L.marker([p.lat, p.lng], { icon: markerIcon(p), title: p.name });
-      m.on("click", () => onOpenDetail(p, km(p.lat, p.lng)));
+      m.on("click", () => handlers.current.onOpenDetail(p, km(p.lat, p.lng)));
       return m;
     });
     for (const s of mudVisible) {
       const m = L.marker([s.lat, s.lng], { icon: MUD_ICON, title: s.name });
-      m.on("click", () => onOpenMudflat?.(s, km(s.lat, s.lng)));
+      m.on("click", () => handlers.current.onOpenMudflat?.(s, km(s.lat, s.lng)));
       markers.push(m);
     }
     cluster.addLayers(markers);
-  }, [visible, mudVisible, onOpenDetail, onOpenMudflat, loc]);
+  }, [visible, mudVisible, loc]);
 
   const counts = useMemo(() => {
     const c: Record<PlaceKind, number> = { playground: 0, park: 0, toilet: 0, nursing: 0, venue: 0 };
@@ -337,7 +344,7 @@ function RideSheet({
         <button className="btn" onClick={() => onChange([], undefined)}>
           초기화
         </button>
-        <button className="btn primary" onClick={onClose}>
+        <button className="btn primary wide" onClick={onClose}>
           놀이터 {matched}곳 보기
         </button>
       </div>

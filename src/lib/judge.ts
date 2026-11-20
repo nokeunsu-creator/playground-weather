@@ -4,6 +4,7 @@
  * 기준 출처: 환경부 미세먼지 등급, 기상청 자외선 단계, 질병청 폭염·한파 영유아 권고를 보수적으로 적용.
  */
 import type { AgeGroup, ChildProfile, WxHour, WxIndex, WxNow, WxSnapshot } from "./types";
+import { isDark, sunTimes, type SunTimes } from "./sun";
 
 export type Level = "good" | "caution" | "bad";
 
@@ -22,6 +23,10 @@ export interface JudgeInput {
   idx: WxIndex;
   /** 0~23 */
   hour: number;
+  /** 지금 판정이면 분(시간 칸이면 없음) */
+  minute?: number;
+  /** 그 지역 그날 해 뜨는·지는 시각. 있으면 밤 감점을 일몰 기준으로 한다 */
+  sun?: SunTimes;
 }
 
 export interface Reason {
@@ -215,9 +220,10 @@ export function judge(input: JudgeInput, child: ChildProfile): Judgement {
     add("asthma", "천식·호흡기 주의 지수 높음", 12, "caution");
   }
 
-  // ---- 밤 ----
-  if (input.hour < 7 || input.hour >= 20) {
-    add("night", "해 진 뒤에는 놀이터보다 실내가 좋아요", 10, "caution");
+  // ---- 밤(일몰 30분 뒤 ~ 일출. 해 시각을 모르면 20시~7시) ----
+  if (isDark(input.hour, input.minute, input.sun)) {
+    const beforeRise = input.hour < 12;
+    add("night", beforeRise ? "해 뜨기 전이라 어두워요" : "해 진 뒤에는 놀이터보다 실내가 좋아요", 10, "caution");
   }
 
   // 아이 공통 준비물
@@ -228,7 +234,7 @@ export function judge(input: JudgeInput, child: ChildProfile): Judgement {
   const score = Math.max(0, Math.min(100, Math.round(100 - penalty)));
   const hasBad = reasons.some((r) => r.level === "bad");
   const level: Level = hasBad || score < 40 ? "bad" : score >= 70 ? "good" : "caution";
-  if (level === "good") maxMinutes = Math.max(maxMinutes, 120);
+  // good 이어도 추위·더위·자외선이 정한 시간 제한(45·60분)은 그대로 둔다(예전엔 120분으로 올려 '자유롭게'로 보였다)
   if (level === "bad") maxMinutes = Math.min(maxMinutes, 20);
 
   const sorted = reasons.sort((a, b) => b.penalty - a.penalty);
@@ -248,7 +254,7 @@ function dedupe<T>(a: T[]): T[] {
   return [...new Set(a)];
 }
 
-export function inputFromNow(now: WxNow, hourRow: WxHour | undefined, idx: WxIndex, at: Date): JudgeInput {
+export function inputFromNow(now: WxNow, hourRow: WxHour | undefined, idx: WxIndex, at: Date, sun?: SunTimes): JudgeInput {
   return {
     temp: now.temp,
     feels: now.feels ?? feelsLike(now.temp, now.wsd, now.reh),
@@ -263,10 +269,12 @@ export function inputFromNow(now: WxNow, hourRow: WxHour | undefined, idx: WxInd
     uv: hourRow?.uv,
     idx,
     hour: at.getHours(),
+    minute: at.getMinutes(),
+    sun,
   };
 }
 
-export function inputFromHour(h: WxHour, now: WxNow, idx: WxIndex): JudgeInput {
+export function inputFromHour(h: WxHour, now: WxNow, idx: WxIndex, sun?: SunTimes): JudgeInput {
   return {
     temp: h.temp,
     feels: h.feels ?? feelsLike(h.temp, h.wsd, h.reh),
@@ -282,7 +290,26 @@ export function inputFromHour(h: WxHour, now: WxNow, idx: WxIndex): JudgeInput {
     uv: h.uv,
     idx,
     hour: Number(h.t.slice(11, 13)),
+    sun,
   };
+}
+
+/** 위치를 알면 그날 해 시각을 붙인다 */
+export const sunAt = (date: string, pos?: { lat: number; lng: number }) => (pos ? sunTimes(date, pos.lat, pos.lng) : undefined);
+
+/**
+ * 지금 판정 입력. 실황(now)이 1시간 넘게 지났으면 지금 시각 예보행을 쓴다
+ * (날씨 수집이 6~8시간 간격이라 아침에 새벽 실황으로 판정하던 문제).
+ * 예보행도 없으면(스냅샷이 너무 오래됨) undefined.
+ */
+export function currentInput(snap: WxSnapshot, at: Date, nowKey: string, sun?: SunTimes): { input: JudgeInput; fromForecast: boolean } | undefined {
+  const row = snap.hours.find((h) => h.t === nowKey);
+  const ageH = (Date.parse(nowKey) - Date.parse(snap.now.at)) / 3600e3;
+  if (Number.isFinite(ageH) && ageH >= 1) {
+    if (!row) return ageH <= 3 ? { input: inputFromNow(snap.now, row, snap.idx, at, sun), fromForecast: false } : undefined;
+    return { input: { ...inputFromHour(row, snap.now, snap.idx, sun), minute: at.getMinutes() }, fromForecast: true };
+  }
+  return { input: inputFromNow(snap.now, row, snap.idx, at, sun), fromForecast: false };
 }
 
 export interface BestWindow {
@@ -324,13 +351,14 @@ function worse(a: Level, b: Level): Level {
  * fromKey 를 주면 그 시각 이전(지나간 시간)은 빼고 계산한다.
  * 남은 시간이 1시간뿐이면 1시간 구간을 돌려준다.
  */
-export function dayPlan(snap: WxSnapshot, child: ChildProfile, date: string, fromKey?: string): DayPlan {
+export function dayPlan(snap: WxSnapshot, child: ChildProfile, date: string, fromKey?: string, pos?: { lat: number; lng: number }): DayPlan {
+  const sun = sunAt(date, pos);
   const cells: HourCell[] = snap.hours
     .filter((h) => h.t.startsWith(date) && (!fromKey || h.t >= fromKey))
     .map((h) => ({ h, hour: Number(h.t.slice(11, 13)) }))
     .filter(({ hour }) => hour >= PLAY_START && hour <= PLAY_END)
     .map(({ h, hour }) => {
-      const j = judge(inputFromHour(h, snap.now, snap.idx), child);
+      const j = judge(inputFromHour(h, snap.now, snap.idx, sun), child);
       return { t: h.t, hour, score: j.score, level: j.level, top: j.reasons[0]?.text };
     });
   const hh = (n: number) => `${String(n).padStart(2, "0")}:00`;

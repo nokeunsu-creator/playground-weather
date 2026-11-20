@@ -280,6 +280,15 @@ a {
 .judge .meta svg {
   color: var(--muted);
 }
+/* 실황이 오래돼 지금 시각 예보로 판정할 때 */
+.judge .meta small.fc {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--fill);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -557,6 +566,11 @@ a {
 }
 .btnrow .btn {
   flex: 1;
+  white-space: nowrap;
+}
+/* 글자가 긴 쪽("놀이터 1234곳 보기"). 360px 폭에서 "보/기"로 줄바뀌던 것 */
+.btnrow .btn.wide {
+  flex: 2;
 }
 
 /* 지도 */
@@ -880,6 +894,13 @@ select.sel {
   line-height: 1.5;
   padding: 0 4px;
 }
+/* 알림 권한이 꺼졌을 때 등 사용자가 해야 할 일 */
+.notice.warn {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--caution);
+  margin: -4px 0 14px;
+}
 .mock {
   display: inline-block;
   background: rgba(255, 59, 48, 0.12);
@@ -909,7 +930,7 @@ select.sel {
 
 /* 온보딩 */
 .onboard {
-  padding: calc(var(--sat) + 48px) 24px 40px;
+  padding: calc(var(--sat) + 48px) 24px calc(40px + var(--ad-h) + var(--sab));
   max-width: 480px;
   margin: 0 auto;
   display: flex;

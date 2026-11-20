@@ -1,6 +1,6 @@
 import type { Place } from "../lib/types";
 import { fmtDistance } from "../lib/geo";
-import { KIND_LABEL, mapLinks, openExternal, placeIcon, rideList, Sheet } from "../components/common";
+import { isPublicSite, KIND_LABEL, mapLinks, openExternal, placeIcon, rideList, Sheet } from "../components/common";
 import { floorList } from "../lib/rides";
 import { hoursRows, venueStatus } from "../lib/venue";
 import { Icon } from "../components/Icon";
@@ -55,7 +55,8 @@ export function PlaceSheet({ place: p, km, fav, onFav, onMap, onClose }: Props) 
     rows.push(["개방시간", p.open ?? "–"], ["기저귀교환대", p.diaper ?? "없음 / 정보없음"], ["어린이변기", p.facilities?.includes("어린이변기") ? "있음" : "없음 / 정보없음"]);
   }
   if (p.tel) rows.push(["전화", p.tel]);
-  const restricted = p.kind === "playground" && p.site && /주택|아파트|단지|빌라|유치원|어린이집|학교/.test(p.site);
+  // 지도 '공공만' 필터·홈 추천과 같은 기준(종교시설·학원·직장 등 포함)
+  const restricted = p.kind === "playground" && !!p.site && !isPublicSite(p.site);
 
   return (
     <Sheet onClose={onClose}>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { DataIndex, Place, SggInfo, WxSnapshot } from "../lib/types";
 import type { Settings } from "../lib/store";
 import type { Loc } from "../lib/location";
-import { dayPlan, inputFromHour, inputFromNow, judge, pm10Grade, pm25Grade, PM_LABEL, uvLabel } from "../lib/judge";
+import { currentInput, dayPlan, inputFromHour, judge, pm10Grade, pm25Grade, PM_LABEL, sunAt, uvLabel } from "../lib/judge";
 import { BestTime, summary } from "../components/BestTime";
 import { ShareSheet } from "../components/ShareSheet";
 import type { CardData } from "../lib/shareCard";
@@ -37,25 +37,31 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
   const now = new Date();
   const nowKey = localIsoHour(now);
   const today = nowKey.slice(0, 10);
+  const minuteKey = `${nowKey}:${now.getMinutes()}`;
+  const pos = useMemo(() => (sgg ? { lat: sgg.lat, lng: sgg.lng } : undefined), [sgg]);
 
-  const j = useMemo(() => {
-    if (!wx) return undefined;
-    const row = wx.hours.find((h) => h.t === nowKey);
-    return judge(inputFromNow(wx.now, row, wx.idx, now), settings.child);
+  // 실황이 1시간 넘게 지났으면 지금 시각 예보로 판정. 그것도 없으면 undefined(오래된 데이터 안내)
+  const cur = useMemo(
+    () => (wx ? currentInput(wx, now, nowKey, sunAt(today, pos)) : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wx, settings.child, nowKey]);
+    [wx, minuteKey, pos],
+  );
+  const j = useMemo(() => (cur ? judge(cur.input, settings.child) : undefined), [cur, settings.child]);
 
   const tomorrowKey = localIsoHour(new Date(now.getTime() + 86400000)).slice(0, 10);
   const plans = useMemo(
-    () => (wx ? { today: dayPlan(wx, settings.child, today, nowKey), tomorrow: dayPlan(wx, settings.child, tomorrowKey) } : undefined),
-    [wx, settings.child, today, tomorrowKey, nowKey],
+    () => (wx ? { today: dayPlan(wx, settings.child, today, nowKey, pos), tomorrow: dayPlan(wx, settings.child, tomorrowKey, undefined, pos) } : undefined),
+    [wx, settings.child, today, tomorrowKey, nowKey, pos],
   );
   const best = plans?.today.best;
 
   const hours = useMemo(() => {
     if (!wx) return [];
-    return wx.hours.filter((h) => h.t >= nowKey).slice(0, 14).map((h) => ({ h, lv: judge(inputFromHour(h, wx.now, wx.idx), settings.child).level }));
-  }, [wx, settings.child, nowKey]);
+    return wx.hours
+      .filter((h) => h.t >= nowKey)
+      .slice(0, 14)
+      .map((h) => ({ h, lv: judge(inputFromHour(h, wx.now, wx.idx, sunAt(h.t.slice(0, 10), pos)), settings.child).level }));
+  }, [wx, settings.child, nowKey, pos]);
 
   useEffect(() => {
     if (!index || !loc) return;
@@ -106,16 +112,25 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
         </button>
       </div>
 
-      {indexError && <div className="card">{indexError}</div>}
+      {indexError && (
+        <div className="card">
+          <div>{indexError}</div>
+          <div className="btnrow">
+            <button className="btn" onClick={onRefresh}>
+              다시 시도
+            </button>
+          </div>
+        </div>
+      )}
       {!wx && !wxError && !indexError && (
         <>
           <div className="skeleton" />
           <div className="skeleton" />
         </>
       )}
-      {wxError && (
+      {(wxError || (wx && !cur)) && (
         <div className="card">
-          <div>{wxError}</div>
+          <div>{wxError ?? `날씨 정보가 오래됐어요(${fmtAgo(wx!.fetchedAt)} 수집). 인터넷에 연결해 다시 받아 주세요.`}</div>
           <div className="btnrow">
             <button className="btn" onClick={onRefresh}>
               다시 시도
@@ -124,7 +139,7 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
         </div>
       )}
 
-      {wx && j && (
+      {wx && cur && j && (
         <>
           <section className={`card judge ${j.level}`}>
             <div className="level">
@@ -145,7 +160,7 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
             <div className="meta">
               <span>
                 <Icon name="thermo" size={18} />
-                {Math.round(wx.now.temp)}℃ · 체감 {Math.round(wx.now.feels)}℃
+                {Math.round(cur.input.temp)}℃ · 체감 {Math.round(cur.input.feels)}℃{cur.fromForecast && <small className="fc">예보</small>}
               </span>
               <span>
                 <Icon name="clock" size={18} />
@@ -180,7 +195,7 @@ export function Home({ index, indexError, sgg, wx, wxError, settings, loc, locat
                     headline: j.headline,
                     score: j.score,
                     tiles: [
-                      { label: "기온", value: `${Math.round(wx.now.temp)}°`, sub: `체감 ${Math.round(wx.now.feels)}°` },
+                      { label: "기온", value: `${Math.round(cur.input.temp)}°`, sub: `체감 ${Math.round(cur.input.feels)}°` },
                       { label: "미세먼지", value: wx.now.pm10 != null ? String(wx.now.pm10) : "–", sub: g10 != null ? PM_LABEL[g10] : "정보없음", grade: g10 },
                       { label: "초미세먼지", value: wx.now.pm25 != null ? String(wx.now.pm25) : "–", sub: g25 != null ? PM_LABEL[g25] : "정보없음", grade: g25 },
                       { label: "자외선", value: uvNow != null ? String(uvNow) : "–", sub: uvNow != null ? uvLabel(uvNow) : "정보없음", grade: uvGrade },

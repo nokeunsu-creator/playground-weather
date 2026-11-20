@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { Place, PlaceKind, WxHour } from "../lib/types";
+import { pushBack } from "../lib/back";
 import { fmtDistance } from "../lib/geo";
 import { Icon, type IconName } from "./Icon";
 
@@ -77,6 +78,10 @@ export function PlaceRow({ place, km, onClick }: { place: Place; km?: number; on
 }
 
 export function Sheet({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  // 뒤로 가기로 닫히게 한다. 열린 순서를 지키려고 처음 한 번만 올리고, 닫기 함수는 ref 로 최신 것을 쓴다.
+  const close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => pushBack(() => close.current()), []);
   return (
     <>
       <div className="sheet-back" onClick={onClose} />
