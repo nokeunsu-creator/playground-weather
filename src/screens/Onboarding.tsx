@@ -89,7 +89,7 @@ export function Onboarding({ index, onDone }: { index?: DataIndex; onDone: (chil
         시작하기
       </button>
       <p className="notice" style={{ marginTop: 14, textAlign: "center" }}>
-        위치는 날씨 지역과 주변 장소 검색에만 쓰이고 기기 밖으로 전송되지 않아요.
+        위치는 날씨 지역과 주변 장소 검색에만 쓰고 좌표는 보내지 않아요. 자료·지도를 받을 때 대략적인 지역이 해당 서버 기록에 남을 수 있어요.
       </p>
       {pick && index && <RegionPicker index={index} value={home} onPick={setHome} onClose={() => setPick(false)} />}
     </div>

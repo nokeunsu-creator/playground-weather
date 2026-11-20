@@ -108,7 +108,8 @@ async function main() {
     const sgg = matchSgg(addr)?.code ?? (SGG_BY_CODE.has(r.MANAGE_NO?.slice(0, 5)) ? r.MANAGE_NO.slice(0, 5) : "");
     const fac = [...splitList(r.AMSMT_FCLTY), ...splitList(r.MVM_FCLTY), ...splitList(r.CNVNNC_FCLTY)];
     (sgg ? places : pending).push({
-      id: `pk:${r.MANAGE_NO || fnv(r.PARK_NM + addr)}`,
+      // 관리번호는 고유하지 않다(879개 번호를 1,380곳이 더 씀, 이름이 다른 공원 603묶음). 이름·좌표를 섞는다
+      id: `pk:${fnv(`${r.MANAGE_NO ?? ""}|${r.PARK_NM ?? ""}|${lat}|${lng}`)}`,
       kind: "park",
       name: r.PARK_NM?.trim() || "공원",
       lat,
@@ -136,11 +137,16 @@ async function main() {
   let diaperMatched = 0;
   const clean = (v?: string | null) => (v && v !== "null" && v !== "-" && v !== "없음" ? v.trim() : "");
   refDate = "";
+  // 표준데이터에 완전히 같은 행이 2,500행쯤 있어 같은 id 는 한 번만 넣는다
+  const seenToilet = new Set<string>();
   for (const r of toilets.rows) {
     const lat = num(r.LATITUDE);
     const lng = num(r.LONGITUDE);
     if (!inKorea(lat, lng)) continue;
     const addr = normalizeAddr(r.RDNMADR || r.LNMADR || "");
+    const wcId = `wc:${fnv(`${r.TOILET_NM}|${addr}|${lat}|${lng}`)}`;
+    if (seenToilet.has(wcId)) continue;
+    seenToilet.add(wcId);
     const sgg = matchSgg(addr)?.code ?? "";
     const kidsBowls = (num(r.MEN_CHILDREN_TOILET_BOWL_NUMBER) ?? 0) + (num(r.LADIES_CHILDREN_TOILET_BOWL_NUMBER) ?? 0) + (num(r.MEN_CHILDREN_URINAL_NUMBER) ?? 0);
     const fromInfo = diaperIdx ? lookupDiaper(diaperIdx, [r.RDNMADR, r.LNMADR], r.TOILET_NM ?? "") : undefined;
@@ -152,7 +158,7 @@ async function main() {
     if (kidsBowls > 0) fac.push("어린이변기");
     if (r.UNISEX_TOILET_YN === "Y") fac.push("남녀공용");
     (sgg ? places : pending).push({
-      id: `wc:${fnv(`${r.TOILET_NM}|${addr}|${lat}|${lng}`)}`,
+      id: wcId,
       kind: "toilet",
       name: r.TOILET_NM?.trim() || "공중화장실",
       lat,
@@ -266,9 +272,10 @@ async function main() {
       });
     }
     sources.playgrounds = `행안부 어린이놀이시설 안전관리시스템 ${pgTotal}건(좌표 확보 ${pgTotal - pgNoGeo}건)`;
-  } else {
-    console.warn("[places] 놀이터 목록 없음(pipeline/.cache/cpf/list.jsonl) → 공원·화장실만 빌드");
   }
+  // 놀이터가 하나도 없으면 게시하지 않는다(이 앱의 핵심 데이터. 지난 게시본을 그대로 두는 편이 낫다)
+  const pgBuilt = places.filter((p) => p.kind === "playground").length + pending.filter((p) => p.kind === "playground").length;
+  if (pgBuilt === 0) throw new Error("놀이터 0곳: 놀이시설 API·대체 목록 모두 실패 → 게시하지 않음");
 
   // ---- 비 오는 날 갈 곳: 도서관(공공·어린이·작은) + 박물관·미술관 ----
   try {

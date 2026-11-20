@@ -34,9 +34,10 @@ async function page(pageIndex: number): Promise<{ rows: RideRow[]; total: number
       const j = JSON.parse(text) as { response: { body: { totalCnt: number; items: RideRow[] } } };
       return { rows: j.response.body.items ?? [], total: Number(j.response.body.totalCnt) };
     } catch (e) {
-      if (i === 4 || /gateway/.test(String(e))) throw e;
+      // 게이트웨이 일시 오류(SERVICE_TIMEOUT 등)도 재시도한다. 활용신청 문제만 바로 던진다.
+      if (i === 4 || /NOT_REGISTERED|등록되지 않은/.test(String(e))) throw e;
       console.warn(`[rides] page ${pageIndex} retry ${i}: ${(e as Error).message}`);
-      await sleep(1500 * i);
+      await sleep(2000 * i);
     }
   }
   throw new Error("unreachable");

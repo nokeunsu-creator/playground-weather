@@ -11,6 +11,10 @@ on:
         description: "cpf.go.kr 목록 재수집(예비, 약 45분)"
         type: boolean
         default: false
+      force:
+        description: "장소 수가 지난 게시본보다 20% 넘게 줄어도 게시(실제로 줄어든 것을 확인했을 때만)"
+        type: boolean
+        default: false
 
 concurrency:
   group: gh-pages
@@ -52,6 +56,8 @@ jobs:
           if ! git diff --cached --quiet; then git commit -m "chore: geocode cache" && git push; fi
           git fetch origin gh-pages || true
           git worktree add pages gh-pages 2>/dev/null || (git worktree add --orphan -b gh-pages pages)
+          # 종류별 장소 수가 지난 게시본보다 크게 줄었으면(API 일시 오류로 한 층이 빠짐) 게시하지 않는다
+          if [ "${{ inputs.force }}" != "true" ]; then node node_modules/tsx/dist/cli.mjs pipeline/check-drop.ts pages/index.json site/index.json; fi
           rm -rf pages/places pages/index.json pages/meta.json
           cp -r site/places pages/ && cp site/index.json site/meta.json pages/
           touch pages/.nojekyll

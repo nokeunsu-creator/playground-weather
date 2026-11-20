@@ -73,9 +73,12 @@ async function main() {
 
   // ---- 1-a. 농어촌체험휴양마을(갯벌 프로그램) ----
   const spots: MudflatSpot[] = [];
+  /** 주소의 시군구 중심에서 이보다 먼 좌표는 잘못 입력된 것으로 본다(섬 지역 최대 58km 확인) */
+  const MAX_ADDR_KM = 100;
   try {
     const v = await fetchStandard("villages");
     let ref = "";
+    const badCoord: string[] = [];
     for (const r of v.rows) {
       const programs = mudflatPrograms(r.EXPRN_CN);
       if (!programs.length) continue;
@@ -83,6 +86,12 @@ async function main() {
       const lng = Number(r.LONGITUDE);
       if (!(lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132)) continue;
       const addr = normalizeAddr(r.RDNMADR || r.LNMADR || "");
+      // 예: 병술만어촌체험휴양마을은 주소가 태안인데 좌표가 광양(245km)이라 광양 물때가 붙었다
+      const home = index?.sgg.find((s) => s.code === matchSgg(addr)?.code);
+      if (home && haversineKm(lat, lng, home.lat, home.lng) > MAX_ADDR_KM) {
+        badCoord.push(r.EXPRN_VILAGE_NM);
+        continue;
+      }
       spots.push({
         id: `vl:${fnv(`${r.EXPRN_VILAGE_NM}|${addr}`)}`,
         name: (r.EXPRN_VILAGE_NM || "체험마을").trim(),
@@ -98,8 +107,15 @@ async function main() {
       if (r.REFERENCE_DATE > ref) ref = r.REFERENCE_DATE;
     }
     sources.villages = `전국농어촌체험휴양마을표준데이터 중 갯벌 체험 마을 ${spots.length}곳, 기준일 ${ref}`;
+    if (badCoord.length) notes.push(`주소와 좌표가 맞지 않아 뺀 마을 ${badCoord.length}곳: ${badCoord.slice(0, 5).join(", ")}`);
   } catch (e) {
+    // 다운로드가 실패하면 지난 결과의 마을을 그대로 쓴다(뒤에서 체험지수·물때를 다시 붙인다)
     notes.push(`체험마을 표준데이터 실패: ${(e as Error).message}`);
+    for (const old of prev?.spots ?? []) {
+      if (!old.id.startsWith("vl:")) continue;
+      spots.push({ ...old, src: "village", fcst: undefined, station: undefined, stationKm: undefined });
+    }
+    if (spots.length) sources.villages = `전국농어촌체험휴양마을표준데이터(이전 수집값) ${spots.length}곳`;
   }
 
   // ---- 1-b. 갯벌체험지수 포인트(7일) ----
@@ -242,6 +258,13 @@ async function main() {
     }
   }
   spots.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  // 장소가 지난 게시본보다 30% 넘게 줄었으면 쓰지 않고 실패로 끝낸다(워크플로가 커밋하지 않음)
+  const prevCount = prev?.spots.length ?? 0;
+  if (prevCount >= 20 && spots.length < prevCount * 0.7) {
+    console.error(`[tide] 장소 급감 ${prevCount} → ${spots.length}: mudflat.json 을 쓰지 않음. notes: ${notes.join(" / ")}`);
+    process.exitCode = 1;
+    return;
+  }
   const file: MudflatFile = { builtAt: new Date().toISOString(), sources, notes, stations, spots };
   fs.mkdirSync(OUT, { recursive: true });
   fs.writeFileSync(path.join(OUT, "mudflat.json"), JSON.stringify(file));

@@ -1,0 +1,34 @@
+name: privacy-page
+
+# docs/privacy.html 이 main 에 반영되면 gh-pages 의 privacy.html 로 게시한다.
+# (예전에는 손으로 복사해야 해서 게시본이 옛 판으로 남은 적이 있다)
+# 날씨·장소·물때 워크플로와 같은 concurrency 그룹이라 gh-pages 푸시가 겹치지 않는다.
+on:
+  push:
+    branches: [main]
+    paths: [docs/privacy.html]
+  workflow_dispatch:
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: gh-pages 에 처리방침 게시
+        run: |
+          git config user.name "pipeline-bot"
+          git config user.email "pipeline-bot@users.noreply.github.com"
+          git fetch origin gh-pages
+          git worktree add pages gh-pages
+          cp docs/privacy.html pages/privacy.html
+          cd pages
+          git add privacy.html
+          git diff --cached --quiet || git commit -m "page: privacy $(date -u +%F)"
+          git push origin gh-pages

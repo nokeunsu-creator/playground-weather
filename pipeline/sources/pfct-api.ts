@@ -28,19 +28,25 @@ async function fetchPage(pageNo: number, numOfRows: number): Promise<{ items: Ra
   const url =
     `${BASE}?serviceKey=${encodeURIComponent(KEY!)}&type=json` +
     `&pageIndex=${pageNo}&recordCountPerPage=${numOfRows}&pageNo=${pageNo}&numOfRows=${numOfRows}`;
-  for (let i = 1; i <= 3; i++) {
-    const res = await fetch(url, { headers: { Accept: "application/json" } });
-    const text = await res.text();
-    if (text.startsWith("<") || text.includes("OpenAPI_ServiceResponse")) {
-      const msg = text.match(/<returnAuthMsg>([^<]+)|"returnAuthMsg":\s*"([^"]+)/);
-      throw new Error(`gateway: ${msg?.[1] ?? msg?.[2] ?? text.slice(0, 120)}`);
-    }
+  // 네트워크 오류·응답 없음·게이트웨이 일시 오류(SERVICE_TIMEOUT 등)·결과코드 오류 모두 백오프 재시도.
+  // 예전에는 fetch 가 try 밖이라 한 페이지 실패로 놀이터 전체가 빠진 places 가 게시될 수 있었다.
+  const ATTEMPTS = 4;
+  for (let i = 1; i <= ATTEMPTS; i++) {
     try {
+      const res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(30000) });
+      const text = await res.text();
+      if (text.startsWith("<") || text.includes("OpenAPI_ServiceResponse")) {
+        const msg = text.match(/<returnAuthMsg>([^<]+)|"returnAuthMsg":\s*"([^"]+)/);
+        throw new Error(`gateway: ${msg?.[1] ?? msg?.[2] ?? text.slice(0, 120)}`);
+      }
       const j = JSON.parse(text) as Record<string, unknown>;
+      const code = (j.response as { header?: { resultCode?: string; resultMsg?: string } } | undefined)?.header?.resultCode;
+      if (code && code !== "00" && code !== "0") throw new Error(`resultCode ${code}`);
       return extract(j);
     } catch (e) {
-      if (i === 3) throw e;
-      await sleep(1000 * i);
+      if (i === ATTEMPTS || /NOT_REGISTERED|등록되지 않은/.test(String(e))) throw e;
+      console.warn(`[pfct] page ${pageNo} retry ${i}: ${(e as Error).message}`);
+      await sleep(2000 * i);
     }
   }
   throw new Error("unreachable");
@@ -123,6 +129,8 @@ export async function fetchAllPfct(opts: { maxAgeHours?: number } = {}): Promise
     if (p % 10 === 0) console.log(`[pfct] page ${p}/${pages} (${all.length})`);
     await sleep(80);
   }
+  // 빈 페이지가 섞이면(오류 JSON 등) 일부만 게시되지 않게 막는다
+  if (all.length < total * 0.99) throw new Error(`놀이시설 ${all.length}/${total}건만 받음`);
   fs.writeFileSync(file, JSON.stringify(all));
   console.log(`[pfct] cached ${all.length} items`);
   return all;
